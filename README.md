@@ -2,7 +2,7 @@
 ## Issues
 
 ### 系统建议
-- 推荐整一个双系统，推荐 Ubuntu 22.04。   
+- 推荐整一个双系统，推荐 Ubuntu 22.04。[安装教程](https://www.bilibili.com/video/BV1Cc41127B9/?spm_id_from=333.337.search-card.all.click&vd_source=27087b1cb0b05427c1fcb74760d4296f)   
 -  WSL 也能玩。
 ### 工具推荐
 - [论文管理软件zotero](https://www.zotero.org/download/)
