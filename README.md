@@ -7,8 +7,8 @@
 ### 工具推荐
 - [论文管理软件zotero](https://www.zotero.org/download/)
 - git教程
- - [Git相关文字教程](https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/Git/)
- - [Git可视化学习（推荐）](https://learngitbranching.js.org/?locale=zh_CN)
+  - [Git相关文字教程](https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/Git/)
+  - [Git可视化学习（推荐）](https://learngitbranching.js.org/?locale=zh_CN)
 ### 参考资料与资源
 - [大佬整理的NERF介绍](https://github.com/yangjiheng/nerf_and_beyond_docs)  
 - [原版 NERF 论文](https://arxiv.org/abs/2003.08934)  
