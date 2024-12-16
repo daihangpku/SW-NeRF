@@ -1,5 +1,5 @@
 # NeRF_Fans
-## Actions
+## Issues
 
 ### 系统建议
 - 推荐整一个双系统，推荐 Ubuntu 22.04。   
