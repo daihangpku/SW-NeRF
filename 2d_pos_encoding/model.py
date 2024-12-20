@@ -1,24 +1,15 @@
-import torch,torchvision
 import torch.nn as nn
-class model(nn.Module):
+class Model(nn.Module):
     '''
     define model you desire and rename the class
     '''
-    def __init__(self, input_dimension: int, layer_num: int, hidden_dim: int = 128, 
-                 output_dim: int = 3):
+    def __init__(self, input_dimension: int, layer_num: int, output_dim: int = 3):
         super().__init__()
         layers = []
         current_dim = input_dimension
         
         # 计算每层的维度递减量
-        dim_decrease = (hidden_dim - output_dim) // layer_num
-        
-        # 输入层到第一个隐藏层
-        layers.extend([
-            nn.Linear(current_dim, hidden_dim),
-            nn.ReLU(),
-        ])
-        current_dim = hidden_dim
+        dim_decrease = (input_dimension - output_dim) // layer_num
         
         # 构建递减的隐藏层
         for i in range(layer_num - 1):
