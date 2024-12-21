@@ -22,7 +22,6 @@ def save_checkpoint(model, optimizer, cur_epoch, metrics, filename="checkpoint")
     print(f"Checkpoint saved at epoch {cur_epoch+1} to {filename}")
 
 def train(dataloader, model, optimizer, args):
-
     epoch = 50
     cur_epoch = 0
     metrics = {"MSE":[],"PSNR":[]}
@@ -33,7 +32,7 @@ def train(dataloader, model, optimizer, args):
     start_time = time.time()
     for i in range(cur_epoch,epoch):
         iternum = len(dataloader)
-        for pos,color in tqdm(dataloader, desc="Batches", ncols=100,leave=False):
+        for pos,color in tqdm.tqdm(dataloader, desc="Batches", ncols=100,leave=False):
             optimizer.zero_grad()
             output = model(pos)
             loss = torch.nn.functional.mse_loss(output, color)
@@ -48,13 +47,13 @@ def train(dataloader, model, optimizer, args):
         filename = f"cp_{i+1}_{args.L}_{args.layer_num}"
         save_checkpoint(model,optimizer,i,metrics,filename)
     get_graph(metrics,f"{args.L}_{args.layer_num}",args)
-    print(f"final mse:{metrics["MSE"][-1]}, final psnr:{metrics["PSNR"][-1]}")
+    print(f"final mse: {metrics['MSE'][-1]}, final psnr: {metrics['PSNR'][-1]}")
 def test(pos:np.ndarray,model,args):
     # possible bug:need to change color channels
     '''
     display a final result
     '''
-    picture = get_picture(pos,model)
+    picture = get_picture(pos,model,args)
     plt.imsave(f"{args.L}_{args.layer_num}.png",picture)
     if(args.v):
         plt.imshow(picture)
@@ -86,13 +85,13 @@ def get_psnr(dataloader,model)->float:
     gray_mse /= iternum
     psnr = 10*torch.log(gray_max**2/gray_mse)/torch.log(torch.tensor(10.0))
     return psnr
-def get_picture(pos,model):
+def get_picture(pos,model,args):
     H = pos[:,0].max().item()+1
     W = pos[:,1].max().item()+1
     picture = np.ndarray((H,W,3))
     for i in range(H):
         for j in range(W):
-            picture[i,j] = model(encode(torch.tensor([i,j]))).detach().numpy().reshape(-1)
+            picture[i,j] = model(encode(torch.tensor([i,j]).view(1,-1),args)).detach().numpy().reshape(-1)
     return picture
 def get_graph(metrics, filename,args):
     os.makedirs(os.path.join(os.getcwd(),"metrics"), exist_ok=True)
