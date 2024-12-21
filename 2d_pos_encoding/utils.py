@@ -12,86 +12,106 @@ def load_checkpoint(model,optimizer,args):#buggy
     cur_epoch = checkpoint['cur_epoch']
     metrics = checkpoint['metrics']
     return cur_epoch,metrics
-def save_checkpoint(model, optimizer, cur_epoch, metrics, filename="checkpoint"):#buggy
-    os.makedirs(os.path.join(os.getcwd(),"checkpoint"), exist_ok=True)#创建目录；如果目录已存在，则不会出现异常
-    filename = os.path.join(os.getcwd(),"checkpoint",filename+".pth")
-    checkpoint = {'cur_epoch': cur_epoch + 1,'model_state_dict': model.state_dict(),
+
+def save_checkpoint(model, optimizer, cur_epoch, metrics, args):#buggy
+    picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
+    filename = os.path.join(args.checkpoint_save,picture_filename+".pth")
+    checkpoint = {'cur_epoch': cur_epoch + 1,
+                  'model_state_dict': model.state_dict(),
                   'optimizer_state_dict': optimizer.state_dict(),
                   'metrics': metrics}
     torch.save(checkpoint, filename)
     print(f"Checkpoint saved at epoch {cur_epoch+1} to {filename}")
 
-def train(dataloader, model, optimizer, args):
-    epoch = 50
+def train(dataloader, model, optimizer, args, width, height):
+    
+    epoch = args.epochs
     cur_epoch = 0
     metrics = {"MSE":[],"PSNR":[]}
     if(args.checkpoint_load):
         load_checkpoint(model,optimizer,args)
-        cur_epoch,metrics = load_checkpoint(model,optimizer,args)
+        cur_epoch, metrics = load_checkpoint(model,optimizer,args)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     start_time = time.time()
     for i in range(cur_epoch,epoch):
+        model.train()
+        total_loss = 0
+        total_mse = 0
+        total_gray_mse = 0
+        gray_max = 0
         iternum = len(dataloader)
-        for pos,color in tqdm.tqdm(dataloader, desc="Batches", ncols=100,leave=False):
+        for pos, color in tqdm.tqdm(dataloader, desc=f"epoch {i+1}:", ncols=100):
+            pos = pos.to(device)
+            color = color.to(device)
+
             optimizer.zero_grad()
             output = model(pos)
             loss = torch.nn.functional.mse_loss(output, color)
             loss.backward()
             optimizer.step()
-        mse = get_mse(dataloader,model)
-        psnr = get_mse(dataloader,model)
-        metrics["MSE"].append(mse)
+
+            # 计算 MSE
+            total_mse += loss.item()
+            gray_color = 0.2989*color[:,0] + 0.5870*color[:,1] + 0.1140*color[:,2]
+            gray_output = 0.2989*output[:,0] + 0.5870*output[:,1] + 0.1140*output[:,2]
+            total_gray_mse += torch.nn.functional.mse_loss(gray_output, gray_color).item()
+            gray_max = max(gray_max, torch.max(gray_color).item())
+
+        avg_mse = total_mse / iternum
+        avg_gray_mse = total_gray_mse / iternum
+        gray_max = torch.tensor(gray_max, device=device)
+        avg_gray_mse = torch.tensor(avg_gray_mse, device=device)
+        psnr = 10 * torch.log(gray_max ** 2 / avg_gray_mse) / torch.log(torch.tensor(10.0))
+
+        metrics["MSE"].append(avg_mse)
         metrics["PSNR"].append(psnr)
         if args.v:
-            print(f"Epoch {i+1}/{epoch} MSE: {mse:.4f} PSNR: {psnr:.4f} time: {time.time()-start_time:.2f}s")
-        filename = f"cp_{i+1}_{args.L}_{args.layer_num}"
-        save_checkpoint(model,optimizer,i,metrics,filename)
+            print(f"Epoch {i+1}/{epoch} MSE: {avg_mse:.4f} PSNR: {psnr:.4f} time: {time.time()-start_time:.2f}s")
+        
+        save_checkpoint(model, optimizer, i, metrics, args)
+        test(width, height, model, args)
+
     get_graph(metrics,f"{args.L}_{args.layer_num}",args)
     print(f"final mse: {metrics['MSE'][-1]}, final psnr: {metrics['PSNR'][-1]}")
-def test(pos:np.ndarray,model,args):
+
+def test(width, height, model, args):
     # possible bug:need to change color channels
     '''
     display a final result
     '''
-    picture = get_picture(pos,model,args)
-    plt.imsave(f"{args.L}_{args.layer_num}.png",picture)
+    model.eval()
+    picture = get_picture(width, height, model, args)
+    picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
+    output_dir = os.path.join(args.output_dir, f"{picture_filename}_{args.L}_{args.layer_num}.png")
+
+    plt.imsave(output_dir,picture)
     if(args.v):
         plt.imshow(picture)
+        plt.show()
 
-def get_mse(dataloader,model)->float:
-    '''
-    get mse of the model output picture
-    '''
-    mse = 0
-    iternum = len(dataloader)
-    for pos,color in dataloader:
-        output = model(pos)
-        mse += torch.nn.functional.mse_loss(output, color).item()
-    mse /= iternum
-    return mse
-def get_psnr(dataloader,model)->float:
-    '''
-    get psnr of the model output picture
-    '''
-    gray_mse = 0
-    gray_max = 0
-    iternum = len(dataloader)
-    for pos,color in dataloader:
-        output = model(pos)
-        gray_color = 0.2989*color[:,0] + 0.5870*color[:,1] + 0.1140*color[:,2]
-        gray_output = 0.2989*output[:,0] + 0.5870*output[:,1] + 0.1140*output[:,2]
-        gray_mse += torch.nn.functional.mse_loss(gray_output, gray_color).item()
-        gray_max = max(gray_max, torch.max(gray_color).item())
-    gray_mse /= iternum
-    psnr = 10*torch.log(gray_max**2/gray_mse)/torch.log(torch.tensor(10.0))
-    return psnr
-def get_picture(pos,model,args):
-    H = pos[:,0].max().item()+1
-    W = pos[:,1].max().item()+1
-    picture = np.ndarray((H,W,3))
-    for i in range(H):
-        for j in range(W):
-            picture[i,j] = model(encode(torch.tensor([i,j]).view(1,-1),args)).detach().numpy().reshape(-1)
+def get_picture(width, height, model, args):
+    H = height
+    W = width
+    device = next(model.parameters()).device
+    picture = np.zeros((H, W, 3))
+    
+    # 创建所有位置的网格
+    positions = np.array([[j, i] for i in range(H) for j in range(W)], dtype=np.float32)
+    positions = torch.tensor(positions).to(device)
+    
+    # 批量编码位置
+    encoded_positions = encode(positions, args).to(device)
+    
+    # 批量预测
+    with torch.no_grad():
+        outputs = model(encoded_positions).cpu().numpy()
+    
+    # 将输出重塑为图片
+    picture = outputs.reshape(H, W, 3)
+
+    # 将图片的值截断到0到1的范围
+    picture = np.clip(picture, 0, 1)
+
     return picture
 def get_graph(metrics, filename,args):
     os.makedirs(os.path.join(os.getcwd(),"metrics"), exist_ok=True)

@@ -3,22 +3,19 @@ class Model(nn.Module):
     '''
     define model you desire and rename the class
     '''
-    def __init__(self, input_dimension: int, layer_num: int, output_dim: int = 3):
+    def __init__(self, input_dimension: int, layer_num: int, hidden_dim: int = 256, output_dim: int = 3):
         super().__init__()
         layers = []
         current_dim = input_dimension
         
-        # 计算每层的维度递减量
-        dim_decrease = (input_dimension - output_dim) // layer_num
-        
-        # 构建递减的隐藏层
-        for i in range(layer_num - 1):
-            next_dim = current_dim - dim_decrease
+        # 构建隐藏层
+        for i in range(layer_num):
             layers.extend([
-                nn.Linear(current_dim, next_dim),
-                nn.ReLU(),
+                nn.Linear(current_dim, hidden_dim),
+                nn.ReLU(inplace=True),
+                nn.BatchNorm1d(hidden_dim)
             ])
-            current_dim = next_dim
+            current_dim = hidden_dim
         
         # 输出层
         layers.append(nn.Linear(current_dim, output_dim))

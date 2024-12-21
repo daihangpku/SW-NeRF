@@ -14,9 +14,10 @@ def load_picture(args):
     pos = np.array([[x, y] for y in range(height) for x in range(width)])
     positions = torch.tensor(pos, dtype=torch.float32)
 
-    color = np.array(list(image.getdata()))
+    color = np.array(list(image.getdata()))/ 255.0
     colors = torch.tensor(color, dtype=torch.float32)
-    return positions, colors
+    #print(width, height)
+    return positions, colors, width, height
 
 def encode(pos,args):        #params:L
     '''
