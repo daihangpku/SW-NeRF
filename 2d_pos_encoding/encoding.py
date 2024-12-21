@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from PIL import Image
 def load_picture(args):
     '''
     input: args(picture directory)
@@ -7,15 +8,14 @@ def load_picture(args):
     a tensor of position, shape = (H*W),2
     and a tensor of color, shape = (H*W),3
     '''
-    H = 400;W = 300
-    x = np.arange(H)
-    y = np.arange(W)
-    xv, yv = np.meshgrid(x, y, indexing='ij')
-    positions = np.stack([xv, yv], axis=-1).reshape(-1, 2)
-    
-    # Generate random colors for each position
-    colors = torch.zeros(H * W, 3)
-    
+    image = Image.open(args.picture_dir)
+    image = image.convert('RGB')
+    width, height = image.size
+    pos = np.array([[x, y] for y in range(height) for x in range(width)])
+    positions = torch.tensor(pos, dtype=torch.float32)
+
+    color = np.array(list(image.getdata()))
+    colors = torch.tensor(color, dtype=torch.float32)
     return positions, colors
 
 def encode(pos,args):        #params:L
@@ -26,8 +26,12 @@ def encode(pos,args):        #params:L
     L = args.L 
     encoding = torch.zeros((pos.shape[0], 4 * L + 2)) 
     for i in range(L):
-        encoding[:, 2 * i] = torch.sin(pos[:, 0] * (2 ** i))  
-        encoding[:, 2 * i + 1] = torch.cos(pos[:, 0] * (2 ** i))  
-        encoding[:, 2 * L + 2 * i] = torch.sin(pos[:, 1] * (2 ** i))  
-        encoding[:, 2 * L + 2 * i + 1] = torch.cos(pos[:, 1] * (2 ** i)) 
+        # x 坐标的sin和cos
+        encoding[:, 2 * i] = torch.sin(2**i * np.pi * pos[:, 0])
+        encoding[:, 2 * i + 1] = torch.cos(2**i * np.pi * pos[:, 0])
+        
+        # y 坐标的sin和cos
+        encoding[:, 2 * L + 2 * i] = torch.sin(2**i * np.pi * pos[:, 1])
+        encoding[:, 2 * L + 2 * i + 1] = torch.cos(2**i * np.pi * pos[:, 1])
+        
     return encoding
