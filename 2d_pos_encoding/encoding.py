@@ -25,13 +25,15 @@ def encode(pos,args):        #params:L
     '''
     L = args.L 
     encoding = torch.zeros((pos.shape[0], 4 * L + 2)) 
+    encoding[:, 0] = pos[:, 0]  
+    encoding[:, 1] = pos[:, 1] 
     for i in range(L):
         # x 坐标的sin和cos
-        encoding[:, 2 * i] = torch.sin(2**i * np.pi * pos[:, 0])
-        encoding[:, 2 * i + 1] = torch.cos(2**i * np.pi * pos[:, 0])
-        
+        encoding[:, 4 * i + 2] = torch.sin(2**i * np.pi * pos[:, 0])
+        encoding[:, 4 * i + 3] = torch.sin(2**i * np.pi * pos[:, 1])
+
         # y 坐标的sin和cos
-        encoding[:, 2 * L + 2 * i] = torch.sin(2**i * np.pi * pos[:, 1])
-        encoding[:, 2 * L + 2 * i + 1] = torch.cos(2**i * np.pi * pos[:, 1])
-        
+        encoding[:, 4 * i + 4] = torch.cos(2**i * np.pi * pos[:, 0])
+        encoding[:, 4 * i + 5] = torch.cos(2**i * np.pi * pos[:, 1])
+
     return encoding
