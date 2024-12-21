@@ -85,9 +85,9 @@ def test(width, height, model, args):
     output_dir = os.path.join(args.output_dir, f"{picture_filename}_{args.L}_{args.layer_num}.png")
 
     plt.imsave(output_dir,picture)
-    if(args.v):
-        plt.imshow(picture)
-        plt.show()
+    # if(args.v):
+    #     plt.imshow(picture)
+    #     plt.show()
 
 def get_picture(width, height, model, args):
     H = height
