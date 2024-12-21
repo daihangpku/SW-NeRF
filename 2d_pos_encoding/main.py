@@ -14,14 +14,14 @@ def main(args):
     encoded_pos = encode(pos,args)
 
     dataset = TensorDataset(encoded_pos, label)
-    dataloader = DataLoader(dataset, shuffle=True, batch_size=128, num_workers=2)
+    dataloader = DataLoader(dataset, shuffle=True, batch_size=1024, num_workers=2)
 
     model = Model(input_dimension=2+4*args.L, layer_num=args.layer_num)
     model = model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(),lr=0.0001)
-    
+    optimizer = torch.optim.AdamW(model.parameters(),lr=0.001)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    train(dataloader, model, optimizer, args, width, height)
+    train(dataloader, model, optimizer, scheduler, args, width, height)
     test(width, height, model, args)
 
 
@@ -39,7 +39,9 @@ if __name__=="__main__":
     parser.add_argument('-v', action='store_true', help='Verbose mode')
     parser.add_argument('--output_dir','-od', type=str, default='2d_pos_encoding/result', help='Path to save output picture')
     args = parser.parse_args()
+
     picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
     os.makedirs(args.output_dir, exist_ok=True)
     os.makedirs(args.checkpoint_save, exist_ok=True)
+
     main(args)

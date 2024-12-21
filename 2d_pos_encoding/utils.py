@@ -23,7 +23,7 @@ def save_checkpoint(model, optimizer, cur_epoch, metrics, args):#buggy
     torch.save(checkpoint, filename)
     print(f"Checkpoint saved at epoch {cur_epoch+1} to {filename}")
 
-def train(dataloader, model, optimizer, args, width, height):
+def train(dataloader, model, optimizer, scheduler, args, width, height):
     
     epoch = args.epochs
     cur_epoch = 0
@@ -40,7 +40,7 @@ def train(dataloader, model, optimizer, args, width, height):
         total_gray_mse = 0
         gray_max = 0
         iternum = len(dataloader)
-        for pos, color in tqdm.tqdm(dataloader, desc=f"epoch {i+1}:", ncols=100):
+        for pos, color in tqdm.tqdm(dataloader, desc=f"epoch {i+1}", ncols=100):
             pos = pos.to(device)
             color = color.to(device)
 
@@ -69,7 +69,10 @@ def train(dataloader, model, optimizer, args, width, height):
             print(f"Epoch {i+1}/{epoch} MSE: {avg_mse:.4f} PSNR: {psnr:.4f} time: {time.time()-start_time:.2f}s")
         
         save_checkpoint(model, optimizer, i, metrics, args)
-        test(width, height, model, args)
+        if(i%20 == 0):
+            test(width, height, model, args)
+
+        scheduler.step()
 
     get_graph(metrics,f"{args.L}_{args.layer_num}",args)
     print(f"final mse: {metrics['MSE'][-1]}, final psnr: {metrics['PSNR'][-1]}")
@@ -113,6 +116,7 @@ def get_picture(width, height, model, args):
     picture = np.clip(picture, 0, 1)
 
     return picture
+
 def get_graph(metrics, filename,args):
     os.makedirs(os.path.join(os.getcwd(),"metrics"), exist_ok=True)
     for metric, values in metrics.items():

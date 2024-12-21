@@ -1,1 +1,1 @@
-python 2d_pos_encoding/main.py --L 10 -pd 2d_pos_encoding/src/1.jpg  -v
+python 2d_pos_encoding/main.py --L 60 -pd 2d_pos_encoding/src/1.jpg  -v --epochs 200
