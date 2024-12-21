@@ -11,10 +11,10 @@ def main(args):
     print(f"Using {device} device")
 
     pos, label, width, height  = load_picture(args)
-    encoded_pos = encode(pos,args)
+    encoded_pos = encode(pos,args.L)
 
     dataset = TensorDataset(encoded_pos, label)
-    dataloader = DataLoader(dataset, shuffle=True, batch_size=1024, num_workers=2)
+    dataloader = DataLoader(dataset, shuffle=True, batch_size=256, num_workers=2)
 
     model = Model(input_dimension=2+4*args.L, layer_num=args.layer_num)
     model = model.to(device)

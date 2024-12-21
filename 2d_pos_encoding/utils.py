@@ -73,8 +73,8 @@ def train(dataloader, model, optimizer, scheduler, args, width, height):
             test(width, height, model, args)
 
         scheduler.step()
-
-    get_graph(metrics,f"{args.L}_{args.layer_num}",args)
+    picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
+    get_graph(metrics,f"{picture_filename}_{args.L}_{args.layer_num}",args)
     print(f"final mse: {metrics['MSE'][-1]}, final psnr: {metrics['PSNR'][-1]}")
 
 def test(width, height, model, args):
@@ -100,10 +100,10 @@ def get_picture(width, height, model, args):
     
     # 创建所有位置的网格
     positions = np.array([[j, i] for i in range(H) for j in range(W)], dtype=np.float32)
-    positions = torch.tensor(positions).to(device)
+    positions = torch.tensor(positions)
     
     # 批量编码位置
-    encoded_positions = encode(positions, args).to(device)
+    encoded_positions = encode(positions, args.L).to(device)
     
     # 批量预测
     with torch.no_grad():
@@ -117,14 +117,18 @@ def get_picture(width, height, model, args):
 
     return picture
 
-def get_graph(metrics, filename,args):
-    os.makedirs(os.path.join(os.getcwd(),"metrics"), exist_ok=True)
+def get_graph(metrics, filename, args):
+    os.makedirs(os.path.join('2d_pos_encoding',"metrics"), exist_ok=True)
     for metric, values in metrics.items():
         plt.figure()
         if(args.v):
+            if isinstance(values, torch.Tensor):
+                values = values.cpu().numpy()
+            elif isinstance(values, list):
+                values = np.array([v.cpu().numpy() if isinstance(v, torch.Tensor) else v for v in values])
             plt.plot(values)
         plt.title(f'{metric} over epochs')
         plt.xlabel('Epoch')
         plt.ylabel(metric)
-        plt.savefig(os.path.join(os.getcwd(),"metrics",filename+f'_{metric}.png'))
+        plt.savefig(os.path.join('2d_pos_encoding',"metrics",filename+f'_{metric}.png'))
         plt.close()

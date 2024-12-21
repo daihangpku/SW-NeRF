@@ -19,12 +19,12 @@ def load_picture(args):
     #print(width, height)
     return positions, colors, width, height
 
-def encode(pos,args):        #params:L
+def encode(pos,L):        #params:L
     '''
     encode [x,y] -> [x,y,...]
     output: a tensor of encoded position, shape = (H*W),4*args.L+2
     '''
-    L = args.L 
+    pos = 2 * (pos / torch.tensor([torch.max(pos[:, 0]), torch.max(pos[:, 1])], dtype=torch.float32)) - 1
     encoding = torch.zeros((pos.shape[0], 4 * L + 2)) 
     encoding[:, 0] = pos[:, 0]  
     encoding[:, 1] = pos[:, 1] 
