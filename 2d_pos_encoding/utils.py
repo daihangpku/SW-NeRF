@@ -15,7 +15,7 @@ def load_checkpoint(model,optimizer,args):#buggy
 
 def save_checkpoint(model, optimizer, cur_epoch, metrics, args):#buggy
     picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
-    filename = os.path.join(args.checkpoint_save,picture_filename+".pth")
+    filename = os.path.join(args.checkpoint_save,f"{picture_filename}_{args.L}_{args.layer_num}.pth")
     checkpoint = {'cur_epoch': cur_epoch + 1,
                   'model_state_dict': model.state_dict(),
                   'optimizer_state_dict': optimizer.state_dict(),
