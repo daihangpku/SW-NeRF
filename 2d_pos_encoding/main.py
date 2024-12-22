@@ -14,13 +14,14 @@ def main(args):
     encoded_pos = encode(pos,args.L)
 
     dataset = TensorDataset(encoded_pos, label)
-    dataloader = DataLoader(dataset, shuffle=True, batch_size=256, num_workers=2)
+    dataloader = DataLoader(dataset, shuffle=True, batch_size=512, num_workers=2)
 
     model = Model(input_dimension=2+4*args.L, layer_num=args.layer_num)
     model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(),lr=0.001)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-
+    
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     train(dataloader, model, optimizer, scheduler, args, width, height)
     test(width, height, model, args)
 
