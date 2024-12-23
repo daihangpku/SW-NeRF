@@ -5,6 +5,13 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from encoding import encode
+def getfilename(args):
+    picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
+    globalfile = f"{picture_filename}_{args.L}_{args.layer_num}_{args.regularization}"
+    return  globalfile
+def cliploss(input, args):
+    loss = torch.mean(torch.max(torch.max(torch.zeros_like(input), input - 1), torch.max(-input, torch.zeros_like(input))))
+    return loss*args.regularization
 def load_checkpoint(model,optimizer,args):#buggy
     checkpoint = torch.load(args.checkpoint_load)
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -15,7 +22,7 @@ def load_checkpoint(model,optimizer,args):#buggy
 
 def save_checkpoint(model, optimizer, cur_epoch, metrics, args):#buggy
     picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
-    filename = os.path.join(args.checkpoint_save,f"{picture_filename}_{args.L}_{args.layer_num}.pth")
+    filename = os.path.join(args.checkpoint_save,getfilename(args)+".pth")
     checkpoint = {'cur_epoch': cur_epoch + 1,
                   'model_state_dict': model.state_dict(),
                   'optimizer_state_dict': optimizer.state_dict(),
@@ -46,7 +53,7 @@ def train(dataloader, model, optimizer, scheduler, args, width, height):
 
             optimizer.zero_grad()
             output = model(pos)
-            loss = torch.nn.functional.mse_loss(output, color)
+            loss = torch.nn.functional.mse_loss(output, color) + cliploss(output, args)
             loss.backward()
             optimizer.step()
 
@@ -55,13 +62,11 @@ def train(dataloader, model, optimizer, scheduler, args, width, height):
             gray_color = 0.2989*color[:,0] + 0.5870*color[:,1] + 0.1140*color[:,2]
             gray_output = 0.2989*output[:,0] + 0.5870*output[:,1] + 0.1140*output[:,2]
             total_gray_mse += torch.nn.functional.mse_loss(gray_output, gray_color).item()
-            gray_max = max(gray_max, torch.max(gray_color).item())
 
         avg_mse = total_mse / iternum
         avg_gray_mse = total_gray_mse / iternum
-        gray_max = torch.tensor(gray_max, device=device)
         avg_gray_mse = torch.tensor(avg_gray_mse, device=device)
-        psnr = 10 * torch.log(gray_max ** 2 / avg_gray_mse) / torch.log(torch.tensor(10.0))
+        psnr = 10 * torch.log(1 / avg_gray_mse) / torch.log(torch.tensor(10.0))
 
         metrics["MSE"].append(avg_mse)
         metrics["PSNR"].append(psnr)
@@ -74,9 +79,12 @@ def train(dataloader, model, optimizer, scheduler, args, width, height):
 
         scheduler.step()
     picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
-    get_graph(metrics,f"{picture_filename}_{args.L}_{args.layer_num}",args)
+    # get_graph(metrics,getfilename(args),args)
     print(f"final mse: {metrics['MSE'][-1]}, final psnr: {metrics['PSNR'][-1]}")
 
+    #* 写入文件
+    with open("2d_pos_encoding/metrics.csv","a") as f:
+        f.write(f"{args.L},{args.epochs},{args.layer_num}{args.regularization},{(metrics['PSNR'][-1]):.2f}\n")
 def test(width, height, model, args):
     # possible bug:need to change color channels
     '''
@@ -85,7 +93,7 @@ def test(width, height, model, args):
     model.eval()
     picture = get_picture(width, height, model, args)
     picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
-    output_dir = os.path.join(args.output_dir, f"{picture_filename}_{args.L}_{args.layer_num}.png")
+    output_dir = os.path.join(args.output_dir, getfilename(args)+".png")
 
     plt.imsave(output_dir,picture)
     # if(args.v):

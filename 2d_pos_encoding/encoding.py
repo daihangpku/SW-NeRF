@@ -14,7 +14,7 @@ def load_picture(args):
     pos = np.array([[x, y] for y in range(height) for x in range(width)])
     positions = torch.tensor(pos, dtype=torch.float32)
 
-    color = np.array(list(image.getdata()))/ 255.0
+    color = np.array(list(image.getdata()))/ 255.0  #0,1浮点数
     colors = torch.tensor(color, dtype=torch.float32)
     #print(width, height)
     return positions, colors, width, height
