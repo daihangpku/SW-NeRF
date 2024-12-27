@@ -19,7 +19,7 @@ def main(args):
     model = Model(input_dimension=2+4*args.L, layer_num=args.layer_num)
     model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(),lr=0.001)
-    
+    #optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.5)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     train(dataloader, model, optimizer, scheduler, args, width, height)

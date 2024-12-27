@@ -38,7 +38,7 @@ def train(dataloader, model, optimizer, scheduler, args, width, height):
         total_loss = 0
         total_mse = 0
         total_gray_mse = 0
-        gray_max = 0
+        #gray_max = 0
         iternum = len(dataloader)
         for pos, color in tqdm.tqdm(dataloader, desc=f"epoch {i+1}", ncols=100):
             pos = pos.to(device)
@@ -55,13 +55,13 @@ def train(dataloader, model, optimizer, scheduler, args, width, height):
             gray_color = 0.2989*color[:,0] + 0.5870*color[:,1] + 0.1140*color[:,2]
             gray_output = 0.2989*output[:,0] + 0.5870*output[:,1] + 0.1140*output[:,2]
             total_gray_mse += torch.nn.functional.mse_loss(gray_output, gray_color).item()
-            gray_max = max(gray_max, torch.max(gray_color).item())
+            #gray_max = max(gray_max, torch.max(gray_color).item())
 
         avg_mse = total_mse / iternum
         avg_gray_mse = total_gray_mse / iternum
-        gray_max = torch.tensor(gray_max, device=device)
+        #gray_max = torch.tensor(gray_max, device=device)
         avg_gray_mse = torch.tensor(avg_gray_mse, device=device)
-        psnr = 10 * torch.log(gray_max ** 2 / avg_gray_mse) / torch.log(torch.tensor(10.0))
+        psnr = 10 * torch.log(1.0 ** 2 / avg_gray_mse) / torch.log(torch.tensor(10.0))
 
         metrics["MSE"].append(avg_mse)
         metrics["PSNR"].append(psnr)
@@ -69,7 +69,7 @@ def train(dataloader, model, optimizer, scheduler, args, width, height):
             print(f"Epoch {i+1}/{epoch} MSE: {avg_mse:.4f} PSNR: {psnr:.4f} time: {time.time()-start_time:.2f}s")
         
         save_checkpoint(model, optimizer, i, metrics, args)
-        if(i%20 == 0):
+        if((i+1)%20 == 0):
             test(width, height, model, args)
 
         scheduler.step()
@@ -127,6 +127,25 @@ def get_graph(metrics, filename, args):
             elif isinstance(values, list):
                 values = np.array([v.cpu().numpy() if isinstance(v, torch.Tensor) else v for v in values])
             plt.plot(values)
+        # 每隔20个epoch标注一次
+            # for i in range(0, len(values), 20):
+            #     plt.plot(i, values[i], 'ro')  # 红点标记
+            #     plt.annotate(f'{values[i]:.4f}', 
+            #         xy=(i, values[i]), 
+            #         xytext=(0, 10),
+            #         textcoords='offset points',
+            #         ha='center',
+            #         bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.5))
+            
+            # 标注最终值（如果最后一个点不是20的倍数）
+            if True:
+                plt.plot(len(values)-1, values[-1], 'go')
+                plt.annotate(f'{values[-1]:.4f}', 
+                    xy=(len(values)-1, values[-1]), 
+                    xytext=(0, 10),
+                    textcoords='offset points',
+                    ha='center',
+                    bbox=dict(boxstyle='round,pad=0.5', fc='white', alpha=0.5))
         plt.title(f'{metric} over epochs')
         plt.xlabel('Epoch')
         plt.ylabel(metric)
