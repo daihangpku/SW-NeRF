@@ -23,7 +23,7 @@ def main(args):
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     train(dataloader, model, optimizer, scheduler, args, width, height)
-    test(width, height, model, args)
+    #test(width, height, model, args)
 
 
 if __name__=="__main__":
@@ -39,6 +39,7 @@ if __name__=="__main__":
     parser.add_argument('--checkpoint_load','-cl', type=str, default=None, help='Path to load checkpoint file, if None train from scratch')
     parser.add_argument('-v', action='store_true', help='Verbose mode')
     parser.add_argument('--output_dir','-od', type=str, default='2d_pos_encoding/result', help='Path to save output picture')
+    parser.add_argument('--regularization','-reg',type=float, default=0, help='Regularization strength')
     args = parser.parse_args()
 
     picture_filename = os.path.splitext(os.path.basename(args.picture_dir))[0]
