@@ -26,6 +26,7 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
 - [原版 NERF 论文](https://arxiv.org/abs/2003.08934)  
    这是原版 NERF 的文章，看完我们可以讨论一下。
 - [structure from motion(colmap)](https://openaccess.thecvf.com/content_cvpr_2016/papers/Schonberger_Structure-From-Motion_Revisited_CVPR_2016_paper.pdf)
+- [nerf实现](https://github.com/yenchenlin/nerf-pytorch)
 
 
 
