@@ -1,2 +1,5 @@
 tqdm
 matplotlib
+imageio
+imageio-ffmpeg
+configargparse
