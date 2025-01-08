@@ -3,3 +3,4 @@ matplotlib
 imageio
 imageio-ffmpeg
 configargparse
+opencv-python
