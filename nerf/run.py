@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from embedder import *
 from ray import *
 from model import NeRF
+from utils import *
 
 from load_llff import load_llff_data
 from load_deepvoxels import load_dv_data
@@ -80,11 +81,10 @@ def render(H, W, K, chunk=1024*32, rays=None, c2w=None, ndc=True,
       H: int. Height of image in pixels.
       W: int. Width of image in pixels.
       focal: float. Focal length of pinhole camera.
-      chunk: int. Maximum number of rays to process simultaneously. Used to
-        control maximum memory usage. Does not affect final results.
+      chunk: int.  每次处理的最大光线数
       rays: array of shape [2, batch_size, 3]. Ray origin and direction for
         each example in batch.
-      c2w: array of shape [3, 4]. Camera-to-world transformation matrix.
+      c2w: array of shape [3, 4]. 相机到世界的变换矩阵。
       ndc: bool. If True, represent ray origin, direction in NDC coordinates.
       near: float or array of shape [batch_size]. Nearest distance for a ray.
       far: float or array of shape [batch_size]. Farthest distance for a ray.
@@ -123,12 +123,12 @@ def render(H, W, K, chunk=1024*32, rays=None, c2w=None, ndc=True,
     rays_d = torch.reshape(rays_d, [-1,3]).float()
 
     near, far = near * torch.ones_like(rays_d[...,:1]), far * torch.ones_like(rays_d[...,:1])
-    rays = torch.cat([rays_o, rays_d, near, far], -1)
+    rays = torch.cat([rays_o, rays_d, near, far], -1) # 将 near 和 far 距离添加到光线批次中
     if use_viewdirs:
         rays = torch.cat([rays, viewdirs], -1)
 
     # Render and reshape
-    all_ret = batchify_rays(rays, chunk, **kwargs)
+    all_ret = batchify_rays(rays, chunk, **kwargs) # 渲染光线
     for k in all_ret:
         k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
         all_ret[k] = torch.reshape(all_ret[k], k_sh)
@@ -136,11 +136,20 @@ def render(H, W, K, chunk=1024*32, rays=None, c2w=None, ndc=True,
     k_extract = ['rgb_map', 'disp_map', 'acc_map']
     ret_list = [all_ret[k] for k in k_extract]
     ret_dict = {k : all_ret[k] for k in all_ret if k not in k_extract}
-    return ret_list + [ret_dict]
+    return ret_list + [ret_dict] 
 
 
 def render_path(render_poses, hwf, K, chunk, render_kwargs, gt_imgs=None, savedir=None, render_factor=0):
-
+    '''Render a path of images with specified poses.
+    render_poses: 渲染姿势的列表。
+    hwf: 包含高度H、宽度W和焦距focal的元组。
+    K: 内参矩阵。
+    chunk: 每次渲染的块大小。
+    render_kwargs: 渲染函数的其他参数。
+    gt_imgs: 真实图像，用于计算 PSNR。
+    savedir: 保存渲染结果的目录。
+    render_factor: 渲染缩放因子，用于加速渲染。
+    '''
     H, W, focal = hwf
 
     if render_factor!=0:
@@ -229,7 +238,7 @@ def create_nerf(args):
         print('Reloading from', ckpt_path)
         ckpt = torch.load(ckpt_path)
 
-        start = ckpt['global_step']
+        start = ckpt['global_step']  # global_step
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
 
         # Load model
@@ -258,9 +267,14 @@ def create_nerf(args):
         render_kwargs_train['lindisp'] = args.lindisp
 
     render_kwargs_test = {k : render_kwargs_train[k] for k in render_kwargs_train}
-    render_kwargs_test['perturb'] = False
+    render_kwargs_test['perturb'] = False #
     render_kwargs_test['raw_noise_std'] = 0.
-
+    '''
+    render_kwargs_train: dict. Arguments for training.
+    render_kwargs_test: dict. Arguments for testing.
+    start: int. Global step counter.
+    grad_vars: list of torch.Tensor. Model parameters to optimize.
+    '''
     return render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer
 
 
@@ -325,19 +339,15 @@ def render_rays(ray_batch,
                 pytest=False):
     """Volumetric rendering.
     Args:
-      ray_batch: array of shape [batch_size, ...]. All information necessary
-        for sampling along a ray, including: ray origin, ray direction, min
-        dist, max dist, and unit-magnitude viewing direction.
-      network_fn: function. Model for predicting RGB and density at each point
-        in space.
-      network_query_fn: function used for passing queries to network_fn.
-      N_samples: int. Number of different times to sample along each ray.
-      retraw: bool. If True, include model's raw, unprocessed predictions.
+      ray_batch: 包含光线起点、方向、最近距离、最远距离和视角方向的数组。
+      network_fn: 用于预测空间中每个点的 RGB 和密度的模型
+      network_query_fn: 用于将查询传递给 network_fn 的函数。
+      N_samples:  每条光线采样的次数。
+      retraw: bool. 是否包含模型的原始预测。
       lindisp: bool. If True, sample linearly in inverse depth rather than in depth.
       perturb: float, 0 or 1. If non-zero, each ray is sampled at stratified
         random points in time.
-      N_importance: int. Number of additional times to sample along each ray.
-        These samples are only passed to network_fine.
+      N_importance:  额外采样的次数，仅传递给 network_fine
       network_fine: "fine" network with same spec as network_fn.
       white_bkgd: bool. If True, assume a white background.
       raw_noise_std: ...
@@ -422,86 +432,6 @@ def render_rays(ray_batch,
 
     return ret
 
-
-def config_parser():
-
-    import configargparse
-    parser = configargparse.ArgumentParser()
-    parser.add_argument('--config', is_config_file=True, help='config file path')
-    parser.add_argument("--expname", type=str, help='experiment name')
-    parser.add_argument("--basedir", type=str, default='./logs/', help='where to store ckpts and logs')
-    parser.add_argument("--datadir", type=str, default='./data/llff/fern', help='input data directory')
-
-    # training options
-    parser.add_argument("--netdepth", type=int, default=8, help='layers in network')
-    parser.add_argument("--netwidth", type=int, default=256, help='channels per layer')
-    parser.add_argument("--netdepth_fine", type=int, default=8, help='layers in fine network')
-    parser.add_argument("--netwidth_fine", type=int, default=256, help='channels per layer in fine network')
-    parser.add_argument("--N_rand", type=int, default=32*32*4, help='batch size (number of random rays per gradient step)')
-    parser.add_argument("--lrate", type=float, default=5e-4, help='learning rate')
-    parser.add_argument("--lrate_decay", type=int, default=250, help='exponential learning rate decay (in 1000 steps)')
-    parser.add_argument("--chunk", type=int, default=1024*32, help='number of rays processed in parallel, decrease if running out of memory')
-    parser.add_argument("--netchunk", type=int, default=1024*64, help='number of pts sent through network in parallel, decrease if running out of memory')
-    parser.add_argument("--no_batching", action='store_true', help='only take random rays from 1 image at a time')
-    parser.add_argument("--no_reload", action='store_true', help='do not reload weights from saved ckpt')
-    parser.add_argument("--ft_path", type=str, default=None, help='specific weights npy file to reload for coarse network')
-
-    # rendering options
-    parser.add_argument("--N_samples", type=int, default=64, help='number of coarse samples per ray')
-    parser.add_argument("--N_importance", type=int, default=0, help='number of additional fine samples per ray')
-    parser.add_argument("--perturb", type=float, default=1., help='set to 0. for no jitter, 1. for jitter')
-    parser.add_argument("--use_viewdirs", action='store_true', help='use full 5D input instead of 3D')
-    parser.add_argument("--i_embed", type=int, default=0, help='set 0 for default positional encoding, -1 for none')
-    parser.add_argument("--multires", type=int, default=10, help='log2 of max freq for positional encoding (3D location)')
-    parser.add_argument("--multires_views", type=int, default=4, help='log2 of max freq for positional encoding (2D direction)')
-    parser.add_argument("--raw_noise_std", type=float, default=0., help='std dev of noise added to regularize sigma_a output, 1e0 recommended')
-
-    parser.add_argument("--render_only", action='store_true', help='do not optimize, reload weights and render out render_poses path')
-    parser.add_argument("--render_test", action='store_true', help='render the test set instead of render_poses path')
-    parser.add_argument("--render_factor", type=int, default=0, help='downsampling factor to speed up rendering, set 4 or 8 for fast preview')
-
-    # training options
-    parser.add_argument("--precrop_iters", type=int, default=0, help='number of steps to train on central crops')
-    parser.add_argument("--precrop_frac", type=float, default=.5, help='fraction of img taken for central crops') 
-
-    # dataset options
-    parser.add_argument("--dataset_type", type=str, default='llff', help='options: llff / blender / deepvoxels')
-    parser.add_argument("--testskip", type=int, default=8, help='will load 1/N images from test/val sets, useful for large datasets like deepvoxels')
-
-    ## deepvoxels flags
-    parser.add_argument("--shape", type=str, default='greek', help='options : armchair / cube / greek / vase')
-
-    ## blender flags
-    parser.add_argument("--white_bkgd", action='store_true', 
-                        help='set to render synthetic data on a white bkgd (always use for dvoxels)')
-    parser.add_argument("--half_res", action='store_true', 
-                        help='load blender synthetic data at 400x400 instead of 800x800')
-
-    ## llff flags
-    parser.add_argument("--factor", type=int, default=8, 
-                        help='downsample factor for LLFF images')
-    parser.add_argument("--no_ndc", action='store_true', 
-                        help='do not use normalized device coordinates (set for non-forward facing scenes)')
-    parser.add_argument("--lindisp", action='store_true', 
-                        help='sampling linearly in disparity rather than depth')
-    parser.add_argument("--spherify", action='store_true', 
-                        help='set for spherical 360 scenes')
-    parser.add_argument("--llffhold", type=int, default=8, 
-                        help='will take every 1/N images as LLFF test set, paper uses 8')
-
-    # logging/saving options
-    parser.add_argument("--i_print",   type=int, default=100, 
-                        help='frequency of console printout and metric loggin')
-    parser.add_argument("--i_img",     type=int, default=500, 
-                        help='frequency of tensorboard image logging')
-    parser.add_argument("--i_weights", type=int, default=10000, 
-                        help='frequency of weight ckpt saving')
-    parser.add_argument("--i_testset", type=int, default=50000, 
-                        help='frequency of testset saving')
-    parser.add_argument("--i_video",   type=int, default=50000, 
-                        help='frequency of render_poses video saving')
-
-    return parser
 
 
 def train():
@@ -618,7 +548,7 @@ def train():
         'far' : far,
     }
     render_kwargs_train.update(bds_dict)
-    render_kwargs_test.update(bds_dict)
+    render_kwargs_test.update(bds_dict)# 更新参数
 
     # Move testing data to GPU
     render_poses = torch.Tensor(render_poses).to(device)
@@ -628,18 +558,19 @@ def train():
         print('RENDER ONLY')
         with torch.no_grad():
             if args.render_test:
-                # render_test switches to test poses
+                # 如果 render_test 为 True，则使用测试姿势进行渲染
                 images = images[i_test]
             else:
-                # Default is smoother render_poses path
+                # 否则，默认使用更平滑的 render_poses 路径进行渲染
                 images = None
-
+            # 创建保存渲染结果的目录
             testsavedir = os.path.join(basedir, expname, 'renderonly_{}_{:06d}'.format('test' if args.render_test else 'path', start))
             os.makedirs(testsavedir, exist_ok=True)
             print('test poses shape', render_poses.shape)
 
             rgbs, _ = render_path(render_poses, hwf, K, args.chunk, render_kwargs_test, gt_imgs=images, savedir=testsavedir, render_factor=args.render_factor)
             print('Done rendering', testsavedir)
+            # 将渲染结果保存为视频
             imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
 
             return
