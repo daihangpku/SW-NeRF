@@ -7,6 +7,7 @@ img2mse = lambda x, y : torch.mean((x - y) ** 2)
 mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]))
 to8b = lambda x : (255*np.clip(x,0,1)).astype(np.uint8)
 def get_rays(H, W, K, c2w):
+    
     i, j = torch.meshgrid(torch.linspace(0, W-1, W), torch.linspace(0, H-1, H))  # pytorch's meshgrid has indexing='ij'
     i = i.t()
     j = j.t()
@@ -48,8 +49,19 @@ def ndc_rays(H, W, focal, near, rays_o, rays_d):
     return rays_o, rays_d
 
 
-# Hierarchical sampling (section 5.2)
+# Hierarchical sampling 
 def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
+    """
+    Perform hierarchical sampling.
+    Args:
+      bins: [N, M] Tensor. Bin edges.
+      weights: [N, M-1] Tensor. Weights for each bin.
+      N_samples: int. Number of samples to draw.
+      det: bool. If True, use deterministic sampling.
+      pytest: bool. If True, use fixed random numbers for testing.
+    Returns:
+      samples: [N, N_samples] Tensor. Sampled points.
+    """
     # Get pdf
     weights = weights + 1e-5 # prevent nans
     pdf = weights / torch.sum(weights, -1, keepdim=True)
@@ -59,7 +71,7 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
     # Take uniform samples
     if det:
         u = torch.linspace(0., 1., steps=N_samples)
-        u = u.expand(list(cdf.shape[:-1]) + [N_samples])
+        u = u.expand(list(cdf.shape[:-1]) + [N_samples]) # [batch_size, N_samples]
     else:
         u = torch.rand(list(cdf.shape[:-1]) + [N_samples])
 
@@ -75,14 +87,15 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
         u = torch.Tensor(u)
 
     # Invert CDF
-    u = u.contiguous()
-    inds = torch.searchsorted(cdf, u, right=True)
-    below = torch.max(torch.zeros_like(inds-1), inds-1)
+    u = u.contiguous()# 确保 u 是连续的
+    inds = torch.searchsorted(cdf, u, right=True) # 在cdf中查找u的位置
+    below = torch.max(torch.zeros_like(inds-1), inds-1)#索引下边界
     above = torch.min((cdf.shape[-1]-1) * torch.ones_like(inds), inds)
     inds_g = torch.stack([below, above], -1)  # (batch, N_samples, 2)
 
     # cdf_g = tf.gather(cdf, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
     # bins_g = tf.gather(bins, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
+    # 收集 CDF 和 bin 值
     matched_shape = [inds_g.shape[0], inds_g.shape[1], cdf.shape[-1]]
     cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape), 2, inds_g)
     bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape), 2, inds_g)
@@ -92,4 +105,4 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
     t = (u-cdf_g[...,0])/denom
     samples = bins_g[...,0] + t * (bins_g[...,1]-bins_g[...,0])
 
-    return samples
+    return samples#[batch_size, N_samples]

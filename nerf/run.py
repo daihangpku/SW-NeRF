@@ -37,14 +37,14 @@ def batchify(fn, chunk):
         return fn
     def ret(inputs):
         return torch.cat([fn(inputs[i:i+chunk]) for i in range(0, inputs.shape[0], chunk)], 0)
-    return ret
+    return ret#a function
 
 
 def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
     """Prepares inputs and applies network 'fn'.
     """
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
-    embedded = embed_fn(inputs_flat)
+    embedded = embed_fn(inputs_flat) # enbedded inputs
 
     if viewdirs is not None:
         input_dirs = viewdirs[:,None].expand(inputs.shape)
@@ -603,7 +603,7 @@ def train():
 
 
     N_iters = 200000 + 1
-    print('Begin')
+    print('Training Begin')
     print('TRAIN views are', i_train)
     print('TEST views are', i_test)
     print('VAL views are', i_val)
