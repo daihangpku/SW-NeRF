@@ -14,7 +14,11 @@ if CUDA_HOME:
     modules.append(
         CUDAExtension('torchsearchsorted.cuda',
                       ['src/cuda/searchsorted_cuda_wrapper.cpp',
-                       'src/cuda/searchsorted_cuda_kernel.cu'])
+                       'src/cuda/searchsorted_cuda_kernel.cu'],
+                        extra_compile_args={
+                            'nvcc': ['-allow-unsupported-compiler']  # Add this flag
+                        }
+                    )
     )
 
 tests_require = [
