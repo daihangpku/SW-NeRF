@@ -21,6 +21,7 @@ from dataloader.load_llff import load_llff_data
 from dataloader.load_deepvoxels import load_dv_data
 from dataloader.load_blender import load_blender_data
 from dataloader.load_LINEMOD import load_LINEMOD_data
+from dataloader.load_custom_data import load_custom_data
 
 # Misc
 img2mse = lambda x, y : torch.mean((x - y) ** 2)
@@ -510,7 +511,18 @@ def train():
         hemi_R = np.mean(np.linalg.norm(poses[:,:3,-1], axis=-1))
         near = hemi_R-1.
         far = hemi_R+1.
+    elif args.dataset_type == 'custom':
+        images, poses, render_poses, hwf, i_split = load_custom_data(args.datadir, args.half_res, args.testskip)
+        print('Loaded custom', images.shape, render_poses.shape, hwf, args.datadir)
+        i_train, i_val, i_test = i_split
 
+        near = 2.
+        far = 6.
+
+        if args.white_bkgd:
+            images = images[...,:3]*images[...,-1:] + (1.-images[...,-1:])
+        else:
+            images = images[...,:3]
     else:
         print('Unknown dataset type', args.dataset_type, 'exiting')
         return
