@@ -15,10 +15,10 @@ from ray import *
 from model import NeRF
 from utils import *
 
-from load_llff import load_llff_data
-from load_deepvoxels import load_dv_data
-from load_blender import load_blender_data
-from load_LINEMOD import load_LINEMOD_data
+from dataloader.load_llff import load_llff_data
+from dataloader.load_deepvoxels import load_dv_data
+from dataloader.load_blender import load_blender_data
+from dataloader.load_LINEMOD import load_LINEMOD_data
 
 # Misc
 img2mse = lambda x, y : torch.mean((x - y) ** 2)
@@ -192,12 +192,12 @@ def render_path(render_poses, hwf, K, chunk, render_kwargs, gt_imgs=None, savedi
 def create_nerf(args):
     """Instantiate NeRF's MLP model.
     """
-    embed_fn, input_ch = get_embedder(args.multires, args.i_embed)
+    embed_fn, input_ch = get_embedder(args.multires, input_dims=3, i=args.i_embed)
 
     input_ch_views = 0
     embeddirs_fn = None
     if args.use_viewdirs:
-        embeddirs_fn, input_ch_views = get_embedder(args.multires_views, args.i_embed)
+        embeddirs_fn, input_ch_views = get_embedder(args.multires_views, input_dims=3, i=args.i_embed)
     output_ch = 5 if args.N_importance > 0 else 4
     skips = [4]
     model = NeRF(D=args.netdepth, W=args.netwidth,
