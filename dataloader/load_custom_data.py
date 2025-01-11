@@ -47,7 +47,7 @@ def load_custom_data(basedir, half_res=False, testskip=1):
     # 打乱帧的顺序以确保随机划分
     random.shuffle(frames)
     
-    train_split = int(0.8 * total_frames)
+    train_split = int(0.6 * total_frames)
     val_split = int(0.1 * total_frames)
     
     splits = {
