@@ -3,7 +3,8 @@ import imageio
 import time
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm, trange
-
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from embedder import *
 from model import *

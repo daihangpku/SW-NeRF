@@ -7,11 +7,11 @@ img2mse = lambda x, y : torch.mean((x - y) ** 2)
 mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]))
 to8b = lambda x : (255*np.clip(x,0,1)).astype(np.uint8)
 # NeRF网络模型定义
-class NeRF(nn.Module):
+class vallina_NeRF(nn.Module):
     def __init__(self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, skips=[4], use_viewdirs=False):
         """ 
         """
-        super(NeRF, self).__init__()
+        super(vallina_NeRF, self).__init__()
         self.D = D
         self.W = W
         self.input_ch = input_ch
