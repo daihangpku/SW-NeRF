@@ -10,15 +10,18 @@ import torch.nn.functional as F
 from tqdm import tqdm, trange
 
 import matplotlib.pyplot as plt
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from embedder import *
 from ray import *
-from model import NeRF
+from model import vallina_NeRF as NeRF
 from utils import *
 
-from load_llff import load_llff_data
-from load_deepvoxels import load_dv_data
-from load_blender import load_blender_data
-from load_LINEMOD import load_LINEMOD_data
+from dataloader.load_llff import load_llff_data
+from dataloader.load_deepvoxels import load_dv_data
+from dataloader.load_blender import load_blender_data
+from dataloader.load_LINEMOD import load_LINEMOD_data
+from dataloader.load_custom_data import load_custom_data
 
 # Misc
 img2mse = lambda x, y : torch.mean((x - y) ** 2)
@@ -192,14 +195,17 @@ def render_path(render_poses, hwf, K, chunk, render_kwargs, gt_imgs=None, savedi
 def create_nerf(args):
     """Instantiate NeRF's MLP model.
     """
-    embed_fn, input_ch = get_embedder(args.multires, args.i_embed)
+    embed_fn, input_ch = get_embedder(args.multires, input_dims=3, i=args.i_embed)
 
     input_ch_views = 0
     embeddirs_fn = None
     if args.use_viewdirs:
-        embeddirs_fn, input_ch_views = get_embedder(args.multires_views, args.i_embed)
+        embeddirs_fn, input_ch_views = get_embedder(args.multires_views, input_dims=3, i=args.i_embed)
     output_ch = 5 if args.N_importance > 0 else 4
     skips = [4]
+    print(input_ch)  # 打印出 NeRF 类的完整路径
+
+
     model = NeRF(D=args.netdepth, W=args.netwidth,
                  input_ch=input_ch, output_ch=output_ch, skips=skips,
                  input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
@@ -505,7 +511,18 @@ def train():
         hemi_R = np.mean(np.linalg.norm(poses[:,:3,-1], axis=-1))
         near = hemi_R-1.
         far = hemi_R+1.
+    elif args.dataset_type == 'custom':
+        images, poses, render_poses, K, hwf, i_split = load_custom_data(args.datadir, args.half_res, args.testskip)
+        print('Loaded custom', images.shape, render_poses.shape, hwf, args.datadir)
+        i_train, i_val, i_test = i_split
 
+        near = 2.
+        far = 6.
+
+        if args.white_bkgd:
+            images = images[...,:3]*images[...,-1:] + (1.-images[...,-1:])
+        else:
+            images = images[...,:3]
     else:
         print('Unknown dataset type', args.dataset_type, 'exiting')
         return
