@@ -10,9 +10,11 @@ import torch.nn.functional as F
 from tqdm import tqdm, trange
 
 import matplotlib.pyplot as plt
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from embedder import *
 from ray import *
-from model import NeRF
+from model import vallina_NeRF as NeRF
 from utils import *
 
 from dataloader.load_llff import load_llff_data
@@ -200,6 +202,9 @@ def create_nerf(args):
         embeddirs_fn, input_ch_views = get_embedder(args.multires_views, input_dims=3, i=args.i_embed)
     output_ch = 5 if args.N_importance > 0 else 4
     skips = [4]
+    print(input_ch)  # 打印出 NeRF 类的完整路径
+
+
     model = NeRF(D=args.netdepth, W=args.netwidth,
                  input_ch=input_ch, output_ch=output_ch, skips=skips,
                  input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
