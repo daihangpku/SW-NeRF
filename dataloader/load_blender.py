@@ -38,8 +38,11 @@ def load_blender_data(basedir, half_res=False, testskip=1):
     splits = ['train', 'val', 'test']
     metas = {}
     for s in splits:
-        with open(os.path.join(basedir, 'transforms_{}.json'.format(s)), 'r') as fp:
-            metas[s] = json.load(fp)
+        try:
+            with open(os.path.join(basedir, 'transforms_{}.json'.format(s)), 'r') as fp:
+                metas[s] = json.load(fp)
+        except FileNotFoundError:
+            metas[s] = None
 
     if all(meta is None for meta in metas.values()):
         # 如果没有找到任何分割文件，则自动划分数据集
@@ -53,7 +56,7 @@ def load_blender_data(basedir, half_res=False, testskip=1):
         metas['train'] = {'frames': frames[:train_split]}
         metas['val'] = {'frames': frames[train_split:val_split]}
         metas['test'] = {'frames': frames[val_split:]}
-        
+
     all_imgs = []
     all_poses = []
     counts = [0]
