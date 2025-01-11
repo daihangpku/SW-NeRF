@@ -66,7 +66,12 @@ def load_custom_data(basedir, half_res=False, testskip=1):
         
         for frame in splits[s][::skip]:
             fname = os.path.join(basedir, frame['file_path'])
-            imgs.append(imageio.imread(fname))
+            img = imageio.imread(fname)
+            if img.shape[-1] == 3:  # 如果是 RGB 图像
+                img = np.concatenate([img, np.ones((*img.shape[:2], 1), dtype=img.dtype) * 255], axis=-1)  # 添加 Alpha 通道
+            imgs.append(img)
+
+            #imgs.append(imageio.imread(fname))
             poses.append(np.array(frame['transform_matrix']))
         
         imgs = (np.array(imgs) / 255.).astype(np.float32)
@@ -107,4 +112,4 @@ def load_custom_data(basedir, half_res=False, testskip=1):
     
     render_poses = torch.stack([pose_spherical(angle, -30.0, 4.0) for angle in np.linspace(-180, 180, 360+1)[:-1]], 0)
     
-    return imgs, poses, render_poses, [H, W, K], i_split
+    return imgs, poses, render_poses, K, [H, W, (focal_x + focal_y)*0.5], i_split

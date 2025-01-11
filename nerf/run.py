@@ -512,7 +512,7 @@ def train():
         near = hemi_R-1.
         far = hemi_R+1.
     elif args.dataset_type == 'custom':
-        images, poses, render_poses, hwf, i_split = load_custom_data(args.datadir, args.half_res, args.testskip)
+        images, poses, render_poses, K, hwf, i_split = load_custom_data(args.datadir, args.half_res, args.testskip)
         print('Loaded custom', images.shape, render_poses.shape, hwf, args.datadir)
         i_train, i_val, i_test = i_split
 
