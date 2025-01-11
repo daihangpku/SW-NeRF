@@ -5,7 +5,6 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm, trange
 
 
-from run_dnerf_helpers import *
 from embedder import *
 from model import *
 from ray import *
