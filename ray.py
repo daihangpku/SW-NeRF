@@ -104,6 +104,8 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
     Returns:
       samples: [N, N_samples] Tensor. Sampled points.
     """
+    # bins为采样点的"值域",weights为采样点的"频率"
+    # 做法为先根据逆变换采样得到一个分布与weights一致的inds_g/denom,然后在bin中采样和插值得到samples
     # Get pdf
     weights = weights + 1e-5 # prevent nans
     pdf = weights / torch.sum(weights, -1, keepdim=True)

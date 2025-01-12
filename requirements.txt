@@ -4,3 +4,8 @@ imageio
 imageio-ffmpeg
 configargparse
 opencv-python
+torch
+torchvision
+glob
+natsort
+piq
