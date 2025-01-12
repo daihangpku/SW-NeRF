@@ -1,3 +1,4 @@
+# run.py
 import os
 import imageio
 import time
@@ -7,10 +8,10 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from embedder import *
-from model import *
+from model import *  # 确保从 model.py 导入 TNeRF
 from ray import *
 from dataloader.load_blender_dnerf import load_blender_data
-from utils import *
+from utils import config_parser_dnerf, hsv_to_rgb
 try:
     from apex import amp  # 尝试导入apex库（用于混合精度训练）
 except ImportError:
@@ -28,18 +29,16 @@ def batchify(fn, chunk):
     """
     if chunk is None:
         return fn  # 如果没有指定chunk，直接返回原始函数
-    
-    def ret(inputs_pos, inputs_time):
-        num_batches = inputs_pos.shape[0]  # 获取输入的批次大小
 
+    def ret(inputs_pos, viewdirs, dyn_t):  # 修改: 接受 viewdirs 和 dyn_t 作为额外参数
+        num_batches = inputs_pos.shape[0]  # 获取输入的批次大小
         out_list = []  # 存储输出结果的列表
-        dx_list = []  # 存储梯度的列表
         for i in range(0, num_batches, chunk):  # 按照指定的chunk大小进行分批次处理
-            out, dx = fn(inputs_pos[i:i+chunk], [inputs_time[0][i:i+chunk], inputs_time[1][i:i+chunk]])
+            # 这里inputs_pos 的维度是pos_dim+view_dim，要在forward里面处理一下
+            out= fn(inputs_pos[i:i+chunk], viewdirs[i:i+chunk], dyn_t[i:i+chunk])  # 修改: 传递 viewdirs 和 dyn_t
             out_list += [out]  # 将当前批次的输出添加到列表中
-            dx_list += [dx]  # 将当前批次的梯度添加到列表中
-        return torch.cat(out_list, 0), torch.cat(dx_list, 0)  # 合并所有批次的输出和梯度并返回
-    
+        return torch.cat(out_list, 0) # 合并所有批次的输出和梯度并返回
+
     return ret  # 返回构造好的批次处理版本的函数
 
 
@@ -63,10 +62,9 @@ def run_network(inputs, viewdirs, frame_time, fn, embed_fn, embeddirs_fn, embedt
         input_frame_time = frame_time[:, None].expand([B, N, 1])  # 扩展时间的维度
         input_frame_time_flat = torch.reshape(input_frame_time, [-1, 1])  # 展平时间
         embedded_time = embedtime_fn(input_frame_time_flat)  # 对时间进行嵌入
-        embedded_times = [embedded_time, embedded_time]  # 时间嵌入的重复两次，用于后续计算
-
+        embedded_times = embedded_time  # 修改: 仅使用一次时间嵌入
     else:
-        assert NotImplementedError  # 如果不启用离散时间嵌入，抛出错误
+        raise NotImplementedError  # 如果不启用离散时间嵌入，抛出错误
 
     # 嵌入视角（方向）
     if viewdirs is not None:
@@ -74,13 +72,18 @@ def run_network(inputs, viewdirs, frame_time, fn, embed_fn, embeddirs_fn, embedt
         input_dirs_flat = torch.reshape(input_dirs, [-1, input_dirs.shape[-1]])  # 展平视角
         embedded_dirs = embeddirs_fn(input_dirs_flat)  # 对视角进行嵌入
         embedded = torch.cat([embedded, embedded_dirs], -1)  # 将位置和视角嵌入拼接起来
+    else:
+        embedded_dirs = None
 
     # 应用网络并返回输出和位置梯度
-    outputs_flat, position_delta_flat = batchify(fn, netchunk)(embedded, embedded_times)
+    if embedded_dirs is not None:
+        outputs_flat= batchify(fn, netchunk)(embedded, embedded_dirs, embedded_times)  # 修改: 传递 viewdirs 和 dyn_t
+    else:
+        outputs_flat = batchify(fn, netchunk)(embedded, embedded_dirs, embedded_times)
+
     outputs = torch.reshape(outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]])  # 恢复输出的形状
-    position_delta = torch.reshape(position_delta_flat, list(inputs.shape[:-1]) + [position_delta_flat.shape[-1]])  # 恢复位置梯度的形状
-    
-    return outputs, position_delta  # 返回输出和位置梯度
+
+    return outputs  # 返回输出和位置梯度
 
 
 def batchify_rays(rays_flat, chunk=1024*32, **kwargs):
@@ -153,8 +156,9 @@ def render(H, W, focal, chunk=1024*32, rays=None, c2w=None, ndc=True,
     rays_d = torch.reshape(rays_d, [-1,3]).float() # 展平光线方向
 
     # 为每条光线设置最近和最远距离
-    near, far = near * torch.ones_like(rays_d[...,:1]), far * torch.ones_like(rays_d[...,:1])
-    frame_time = frame_time * torch.ones_like(rays_d[...,:1]) # 设置时间戳
+    near = near * torch.ones_like(rays_d[...,:1]).to(device)
+    far = far * torch.ones_like(rays_d[...,:1]).to(device)
+    frame_time = frame_time * torch.ones_like(rays_d[...,:1]).to(device) # 设置时间戳
     rays = torch.cat([rays_o, rays_d, near, far, frame_time], -1) # 将所有光线的原点、方向、最近距离、最远距离、时间戳合并为一个张量
     if use_viewdirs:
         rays = torch.cat([rays, viewdirs], -1) # 如果使用视角方向，将视角方向也拼接到光线数据中
@@ -215,7 +219,7 @@ def render_path(render_poses, render_times, hwf, chunk, render_kwargs, gt_imgs=N
 
     for i, (c2w, frame_time) in enumerate(zip(tqdm(render_poses), render_times)):
         # 渲染当前帧
-        rgb, disp, acc, _ = render(H, W, focal, chunk=chunk, c2w=c2w[:3,:4], frame_time=frame_time, **render_kwargs)
+        rgb, disp, acc, _ = render(H, W, focal, chunk=chunk, rays=None, c2w=c2w[:3,:4], frame_time=frame_time, **render_kwargs)  # 修改: 将 rays 设置为 None 并传递 c2w
         rgbs.append(rgb.cpu().numpy())
         disps.append(disp.cpu().numpy())
 
@@ -257,24 +261,22 @@ def create_nerf(args):
     if args.use_viewdirs:
         embeddirs_fn, input_ch_views = get_embedder(args.multires_views, 3, args.i_embed)
 
-    output_ch = 5 if args.N_importance > 0 else 4 # 如果需要重要性采样，则输出5通道
-    skips = [4] # 跳跃层
-    model = NeRF.get_by_name(args.nerf_type, D=args.netdepth, W=args.netwidth,
-                 input_ch=input_ch, output_ch=output_ch, skips=skips,
-                 input_ch_views=input_ch_views, input_ch_time=input_ch_time,
-                 use_viewdirs=args.use_viewdirs, embed_fn=embed_fn,
-                 zero_canonical=not args.not_zero_canonical).to(device)
-    grad_vars = list(model.parameters()) # 获取所有可训练的参数
+    # 修改: 设置输入特征维度为位置、视角和时间的嵌入维度之和
+    net_dim = 128  # 或根据需要从 args 中获取
+    depth = args.netdepth  # 根据需要从 args 中获取
+    skip_layer = 4  # 或根据需要从 args 中获取
 
-    model_fine = None
-    if args.use_two_models_for_fine:
-        # 如果使用两个模型（粗模型和精细模型），则实例化精细模型
-        model_fine = NeRF.get_by_name(args.nerf_type, D=args.netdepth_fine, W=args.netwidth_fine,
-                          input_ch=input_ch, output_ch=output_ch, skips=skips,
-                          input_ch_views=input_ch_views, input_ch_time=input_ch_time,
-                          use_viewdirs=args.use_viewdirs, embed_fn=embed_fn,
-                          zero_canonical=not args.not_zero_canonical).to(device)
-        grad_vars += list(model_fine.parameters())
+    # 实例化单个 TNeRF 模型
+    model = TNeRF(
+        depth=depth,
+        in_feat=input_ch,
+        dir_feat=input_ch_views,
+        time_feat=input_ch_time,
+        net_dim=net_dim,
+        skip_layer=skip_layer
+    ).to(device)  # 修改: 使用 TNeRF 替代原有的 NeRF
+
+    grad_vars = list(model.parameters())  # 获取所有可训练的参数
 
     # 定义网络查询函数
     network_query_fn = lambda inputs, viewdirs, ts, network_fn : run_network(inputs, viewdirs, ts, network_fn,
@@ -290,10 +292,7 @@ def create_nerf(args):
     if args.do_half_precision:
         # 如果使用半精度计算，初始化AMP
         print("Run model at half precision")
-        if model_fine is not None:
-            [model, model_fine], optimizers = amp.initialize([model, model_fine], optimizer, opt_level='O1')
-        else:
-            model, optimizers = amp.initialize(model, optimizer, opt_level='O1')
+        model, optimizer = amp.initialize(model, optimizer, opt_level='O1')  # 修改: 仅初始化单个模型
 
     start = 0
     basedir = args.basedir
@@ -318,8 +317,6 @@ def create_nerf(args):
 
         # Load model
         model.load_state_dict(ckpt['network_fn_state_dict'])
-        if model_fine is not None:
-            model_fine.load_state_dict(ckpt['network_fine_state_dict'])
         if args.do_half_precision:
             amp.load_state_dict(ckpt['amp'])
 
@@ -329,14 +326,12 @@ def create_nerf(args):
     render_kwargs_train = {
         'network_query_fn' : network_query_fn,
         'perturb' : args.perturb,
-        'N_importance' : args.N_importance,
-        'network_fine': model_fine,
+        'N_importance' : 0,  # 修改: 不使用额外的细化采样
+        'network_fn' : model,  # 修改: 仅使用单个网络
         'N_samples' : args.N_samples,
-        'network_fn' : model,
         'use_viewdirs' : args.use_viewdirs,
         'white_bkgd' : args.white_bkgd,
         'raw_noise_std' : args.raw_noise_std,
-        'use_two_models_for_fine' : args.use_two_models_for_fine,
     }
 
     # NDC only good for LLFF-style forward facing data
@@ -348,7 +343,54 @@ def create_nerf(args):
     render_kwargs_test['perturb'] = False
     render_kwargs_test['raw_noise_std'] = 0.
 
-    return render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer
+    return render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer  # 修改: 不再返回 model_fine
+
+
+def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=False):
+    """Transforms model's predictions to semantically meaningful values.
+    Args:
+        raw: [num_rays, num_samples along ray, 4]. Prediction from model. 3 for RGB and 1 for sigma.
+        z_vals: [num_rays, num_samples along ray]. Integration time.
+        rays_d: [num_rays, 3]. Direction of each ray.
+    Returns:
+        rgb_map: [num_rays, 3]. Estimated RGB color of a ray.
+        disp_map: [num_rays]. Disparity map. Inverse of depth map.
+        acc_map: [num_rays]. Sum of weights along each ray.
+        weights: [num_rays, num_samples]. Weights assigned to each sampled color.
+        depth_map: [num_rays]. Estimated distance to object.
+    """
+    raw2alpha = lambda raw, dists, act_fn=F.relu: 1.-torch.exp(-act_fn(raw)*dists)
+
+    dists = z_vals[...,1:] - z_vals[...,:-1]
+    dists = torch.cat([dists, torch.Tensor([1e10]).expand(dists[...,:1].shape).to(device)], -1)  # 修改: 将张量移动到 GPU
+
+    dists = dists * torch.norm(rays_d[...,None,:], dim=-1)
+
+    rgb = torch.sigmoid(raw[...,:3])  # [N_rays, N_samples, 3]
+    noise = 0.
+    if raw_noise_std > 0.:
+        noise = torch.randn(raw[...,3].shape).to(device) * raw_noise_std  # 修改: 将噪声移动到 GPU
+
+        # Overwrite randomly sampled data if pytest
+        if pytest:
+            np.random.seed(0)
+            noise = np.random.rand(*list(raw[...,3].shape)) * raw_noise_std
+            noise = torch.Tensor(noise).to(device)  # 修改: 将噪声移动到 GPU
+
+    alpha = raw2alpha(raw[...,3] + noise, dists)  # [N_rays, N_samples]
+    # weights = alpha * tf.math.cumprod(1.-alpha + 1e-10, -1, exclusive=True)
+    weights = alpha * torch.cumprod(torch.cat([torch.ones((alpha.shape[0], 1)).to(device), 1.-alpha + 1e-10], -1), -1)[:, :-1]
+    rgb_map = torch.sum(weights[...,None] * rgb, -2)  # [N_rays, 3]
+
+    depth_map = torch.sum(weights * z_vals, -1)
+    disp_map = 1./torch.max(1e-10 * torch.ones_like(depth_map).to(device), depth_map / torch.sum(weights, -1))
+    acc_map = torch.sum(weights, -1)
+
+    if white_bkgd:
+        rgb_map = rgb_map + (1.-acc_map[...,None])
+        # rgb_map = rgb_map + torch.cat([acc_map[..., None] * 0, acc_map[..., None] * 0, (1. - acc_map[..., None])], -1)
+
+    return rgb_map, disp_map, acc_map, weights, depth_map
 
 
 def render_rays(ray_batch,
@@ -359,12 +401,12 @@ def render_rays(ray_batch,
                 lindisp=False,
                 perturb=0.,
                 N_importance=0,
-                network_fine=None,
+                network_fine=None,  # 修改: 不再使用 network_fine
                 white_bkgd=False,
                 raw_noise_std=0.,
                 verbose=False,
                 pytest=False,
-                z_vals=None,
+                z_vals=None, # 线性/逆深度采样
                 use_two_models_for_fine=False):
     """Volumetric rendering.
     Args:
@@ -403,16 +445,17 @@ def render_rays(ray_batch,
     bounds = torch.reshape(ray_batch[...,6:9], [-1,1,3])
     near, far, frame_time = bounds[...,0], bounds[...,1], bounds[...,2] # [-1,1]
     z_samples = None
-    rgb_map_0, disp_map_0, acc_map_0, position_delta_0 = None, None, None, None
+    rgb_map_0, disp_map_0, acc_map_0 = None, None, None
 
-    if z_vals is None:
-        t_vals = torch.linspace(0., 1., steps=N_samples)
+    if z_vals is None: #default
+        #print("z_vals is None, using default sampling strategy")
+        t_vals = torch.linspace(0., 1., steps=N_samples).to(device)
         if not lindisp:
             z_vals = near * (1.-t_vals) + far * (t_vals)
         else:
             z_vals = 1./(1./near * (1.-t_vals) + 1./far * (t_vals))
 
-        z_vals = z_vals.expand([N_rays, N_samples])
+        z_vals = z_vals.expand([N_rays, N_samples]).to(device)
 
         if perturb > 0.:
             # get intervals between samples
@@ -420,65 +463,40 @@ def render_rays(ray_batch,
             upper = torch.cat([mids, z_vals[...,-1:]], -1)
             lower = torch.cat([z_vals[...,:1], mids], -1)
             # stratified samples in those intervals
-            t_rand = torch.rand(z_vals.shape)
+            t_rand = torch.rand(z_vals.shape).to(device)
 
             # Pytest, overwrite u with numpy's fixed random numbers
             if pytest:
                 np.random.seed(0)
-                t_rand = np.random.rand(*list(z_vals.shape))
-                t_rand = torch.Tensor(t_rand)
+                t_rand = np.random.rand(*list(z_vals.shape)) * raw_noise_std
+                t_rand = torch.Tensor(t_rand).to(device)
 
             z_vals = lower + (upper - lower) * t_rand
 
         pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples, 3]
 
 
-        if N_importance <= 0:
-            raw, position_delta = network_query_fn(pts, viewdirs, frame_time, network_fn)
-            rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
+        if N_importance > 0:
+            # 修改: 不使用两个模型，忽略 N_importance
+            print("Warning: N_importance is set but only a single model is used.")
+        #print(f"pts shape: {pts.shape}")
+        raw = network_query_fn(pts, viewdirs, frame_time, network_fn)  # 修改: 只使用一个网络
+        rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
 
-        else:
-            if use_two_models_for_fine:
-                raw, position_delta_0 = network_query_fn(pts, viewdirs, frame_time, network_fn)
-                rgb_map_0, disp_map_0, acc_map_0, weights, _ = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
+    else:
+        pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples + N_importance, 3]
+        raw = network_query_fn(pts, viewdirs, frame_time, network_fn)  # 修改: 只使用一个网络
+        rgb_map, disp_map, acc_map, weights, _ = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
 
-            else:
-                with torch.no_grad():
-                    raw, _ = network_query_fn(pts, viewdirs, frame_time, network_fn)
-                    _, _, _, weights, _ = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
-
-            z_vals_mid = .5 * (z_vals[...,1:] + z_vals[...,:-1])
-            z_samples = sample_pdf(z_vals_mid, weights[...,1:-1], N_importance, det=(perturb==0.), pytest=pytest)
-            z_samples = z_samples.detach()
-            z_vals, _ = torch.sort(torch.cat([z_vals, z_samples], -1), -1)
-
-    pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples + N_importance, 3]
-    run_fn = network_fn if network_fine is None else network_fine
-    raw, position_delta = network_query_fn(pts, viewdirs, frame_time, run_fn)
-    rgb_map, disp_map, acc_map, weights, _ = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
-
-    ret = {'rgb_map' : rgb_map, 'disp_map' : disp_map, 'acc_map' : acc_map, 'z_vals' : z_vals,
-           'position_delta' : position_delta}
+    ret = {'rgb_map' : rgb_map, 'disp_map' : disp_map, 'acc_map' : acc_map, 'z_vals' : z_vals}
     if retraw:
         ret['raw'] = raw
-    if N_importance > 0:
-        if rgb_map_0 is not None:
-            ret['rgb0'] = rgb_map_0
-        if disp_map_0 is not None:
-            ret['disp0'] = disp_map_0
-        if acc_map_0 is not None:
-            ret['acc0'] = acc_map_0
-        if position_delta_0 is not None:
-            ret['position_delta_0'] = position_delta_0
-        if z_samples is not None:
-            ret['z_std'] = torch.std(z_samples, dim=-1, unbiased=False)  # [N_rays]
 
     for k in ret:
         if (torch.isnan(ret[k]).any() or torch.isinf(ret[k]).any()) and DEBUG:
             print(f"! [Numerical Error] {k} contains nan or inf.")
 
     return ret
-
 
 
 def train():
@@ -611,11 +629,9 @@ def train():
 
         # Sample random ray batch
         if use_batching:
-            raise NotImplementedError("Time not implemented")
-
-            # Random over all images
-            batch = rays_rgb[i_batch:i_batch+N_rand] # [B, 2+1, 3*?]
-            batch = torch.transpose(batch, 0, 1)
+            # 修改: 实现基于 viewdirs 的随机批次采样
+            batch = rays_rgb[i_batch:i_batch+N_rand] # [B, 3, 3]
+            batch = torch.transpose(batch, 0, 1)  # [3, B, 3]
             batch_rays, target_s = batch[:2], batch[2]
 
             i_batch += N_rand
@@ -639,20 +655,20 @@ def train():
             frame_time = times[img_i]
 
             if N_rand is not None:
-                rays_o, rays_d = get_rays(H, W, focal, torch.Tensor(pose))  # (H, W, 3), (H, W, 3)
+                rays_o, rays_d = get_rays(H, W, focal, pose)  # 修改: 确保 pose 在 GPU 上
 
                 if i < args.precrop_iters:
                     dH = int(H//2 * args.precrop_frac)
                     dW = int(W//2 * args.precrop_frac)
                     coords = torch.stack(
                         torch.meshgrid(
-                            torch.linspace(H//2 - dH, H//2 + dH - 1, 2*dH), 
-                            torch.linspace(W//2 - dW, W//2 + dW - 1, 2*dW)
+                            torch.linspace(H//2 - dH, H//2 + dH - 1, 2*dH).to(device),  # 修改: 将 coords 转移到 GPU
+                            torch.linspace(W//2 - dW, W//2 + dW - 1, 2*dW).to(device)   # 修改: 将 coords 转移到 GPU
                         ), -1)
                     if i == start:
                         print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")                
                 else:
-                    coords = torch.stack(torch.meshgrid(torch.linspace(0, H-1, H), torch.linspace(0, W-1, W)), -1)  # (H, W, 2)
+                    coords = torch.stack(torch.meshgrid(torch.linspace(0, H-1, H).to(device), torch.linspace(0, W-1, W).to(device)), -1)  # 修改: 将 coords 转移到 GPU
 
                 coords = torch.reshape(coords, [-1,2])  # (H * W, 2)
                 select_inds = np.random.choice(coords.shape[0], size=[N_rand], replace=False)  # (N_rand,)
@@ -666,51 +682,17 @@ def train():
         rgb, disp, acc, extras = render(H, W, focal, chunk=args.chunk, rays=batch_rays, frame_time=frame_time,
                                                 verbose=i < 10, retraw=True,
                                                 **render_kwargs_train)
-
-        if args.add_tv_loss:
-            frame_time_prev = times[img_i - 1] if img_i > 0 else None
-            frame_time_next = times[img_i + 1] if img_i < times.shape[0] - 1 else None
-
-            if frame_time_prev is not None and frame_time_next is not None:
-                if np.random.rand() > .5:
-                    frame_time_prev = None
-                else:
-                    frame_time_next = None
-
-            if frame_time_prev is not None:
-                rand_time_prev = frame_time_prev + (frame_time - frame_time_prev) * torch.rand(1)[0]
-                _, _, _, extras_prev = render(H, W, focal, chunk=args.chunk, rays=batch_rays, frame_time=rand_time_prev,
-                                                verbose=i < 10, retraw=True, z_vals=extras['z_vals'].detach(),
-                                                **render_kwargs_train)
-
-            if frame_time_next is not None:
-                rand_time_next = frame_time + (frame_time_next - frame_time) * torch.rand(1)[0]
-                _, _, _, extras_next = render(H, W, focal, chunk=args.chunk, rays=batch_rays, frame_time=rand_time_next,
-                                                verbose=i < 10, retraw=True, z_vals=extras['z_vals'].detach(),
-                                                **render_kwargs_train)
-
         optimizer.zero_grad()
         img_loss = img2mse(rgb, target_s)
 
-        tv_loss = 0
-        if args.add_tv_loss:
-            if frame_time_prev is not None:
-                tv_loss += ((extras['position_delta'] - extras_prev['position_delta']).pow(2)).sum()
-                if 'position_delta_0' in extras:
-                    tv_loss += ((extras['position_delta_0'] - extras_prev['position_delta_0']).pow(2)).sum()
-            if frame_time_next is not None:
-                tv_loss += ((extras['position_delta'] - extras_next['position_delta']).pow(2)).sum()
-                if 'position_delta_0' in extras:
-                    tv_loss += ((extras['position_delta_0'] - extras_next['position_delta_0']).pow(2)).sum()
-            tv_loss = tv_loss * args.tv_loss_weight
-
-        loss = img_loss + tv_loss
+        loss = img_loss
         psnr = mse2psnr(img_loss)
 
-        if 'rgb0' in extras:
-            img_loss0 = img2mse(extras['rgb0'], target_s)
-            loss = loss + img_loss0
-            psnr0 = mse2psnr(img_loss0)
+        # 修改: 移除对 rgb0 的处理，因为现在只有一个网络
+        # if 'rgb0' in extras:
+        #     img_loss0 = img2mse(extras['rgb0'], target_s)
+        #     loss = loss + img_loss0
+        #     psnr0 = mse2psnr(img_loss0)
 
         if args.do_half_precision:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
@@ -741,9 +723,6 @@ def train():
                 'network_fn_state_dict': render_kwargs_train['network_fn'].state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
             }
-            if render_kwargs_train['network_fine'] is not None:
-                save_dict['network_fine_state_dict'] = render_kwargs_train['network_fine'].state_dict()
-
             if args.do_half_precision:
                 save_dict['amp'] = amp.state_dict()
             torch.save(save_dict, path)
@@ -757,15 +736,10 @@ def train():
 
             writer.add_scalar('loss', img_loss.item(), i)
             writer.add_scalar('psnr', psnr.item(), i)
-            if 'rgb0' in extras:
-                writer.add_scalar('loss0', img_loss0.item(), i)
-                writer.add_scalar('psnr0', psnr0.item(), i)
             if args.add_tv_loss:
                 writer.add_scalar('tv', tv_loss.item(), i)
 
         del loss, img_loss, psnr, target_s
-        if 'rgb0' in extras:
-            del img_loss0, psnr0
         if args.add_tv_loss:
             del tv_loss
         del rgb, disp, acc, extras
@@ -778,8 +752,8 @@ def train():
             pose = poses[img_i, :3,:4]
             frame_time = times[img_i]
             with torch.no_grad():
-                rgb, disp, acc, extras = render(H, W, focal, chunk=args.chunk, c2w=pose, frame_time=frame_time,
-                                                    **render_kwargs_test)
+                rgb, disp, acc, extras = render(H, W, focal, chunk=args.chunk, rays=None, c2w=pose, frame_time=frame_time,
+                                                    **render_kwargs_test)  # 修改: 将 rays 设置为 None 并传递 c2w
 
             psnr = mse2psnr(img2mse(rgb, target))
             writer.add_image('gt', to8b(target.cpu().numpy()), i, dataformats='HWC')
@@ -787,12 +761,13 @@ def train():
             writer.add_image('disp', disp.cpu().numpy(), i, dataformats='HW')
             writer.add_image('acc', acc.cpu().numpy(), i, dataformats='HW')
 
-            if 'rgb0' in extras:
-                writer.add_image('rgb_rough', to8b(extras['rgb0'].cpu().numpy()), i, dataformats='HWC')
-            if 'disp0' in extras:
-                writer.add_image('disp_rough', extras['disp0'].cpu().numpy(), i, dataformats='HW')
-            if 'z_std' in extras:
-                writer.add_image('acc_rough', extras['z_std'].cpu().numpy(), i, dataformats='HW')
+            # 修改: 移除对 rgb0 和 disp0 的处理，因为现在只有一个网络
+            # if 'rgb0' in extras:
+            #     writer.add_image('rgb_rough', to8b(extras['rgb0'].cpu().numpy()), i, dataformats='HWC')
+            # if 'disp0' in extras:
+            #     writer.add_image('disp_rough', extras['disp0'].cpu().numpy(), i, dataformats='HW')
+            # if 'z_std' in extras:
+            #     writer.add_image('acc_rough', extras['z_std'].cpu().numpy(), i, dataformats='HW')
 
             print("finish summary")
             writer.flush()
@@ -819,7 +794,7 @@ def train():
             testsavedir = os.path.join(basedir, expname, 'testset_{:06d}'.format(i))
             print('Testing poses shape...', poses[i_test].shape)
             with torch.no_grad():
-                render_path(torch.Tensor(poses[i_test]).to(device), torch.Tensor(times[i_test]).to(device),
+                render_path(torch.Tensor(poses[i_test]).to(device), torch.Tensor(render_times[i_test]).to(device),
                             hwf, args.chunk, render_kwargs_test, gt_imgs=images[i_test], savedir=testsavedir)
             print('Saved test set')
 

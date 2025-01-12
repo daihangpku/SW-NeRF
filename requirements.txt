@@ -6,3 +6,8 @@ configargparse
 opencv-python
 scikit-image
 trimesh
+torch
+torchvision
+glob
+natsort
+piq

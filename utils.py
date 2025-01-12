@@ -1,6 +1,8 @@
 import torch
 torch.autograd.set_detect_anomaly(True)
 import torch.nn as nn
+import matplotlib.pyplot as plt
+import os
 import torch.nn.functional as F
 import numpy as np
 #from torchsearchsorted import searchsorted
@@ -10,6 +12,7 @@ import numpy as np
 img2mse = lambda x, y : torch.mean((x - y) ** 2) # 计算均方误差 (MSE)
 mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.])) # 从MSE计算PSNR (峰值信噪比)
 to8b = lambda x : (255*np.clip(x,0,1)).astype(np.uint8) # 将图像值从[0,1]范围转换为[0,255]并转为uint8格式
+
 def config_parser():
 
     import configargparse
@@ -236,3 +239,22 @@ def hsv_to_rgb(h, s, v):
     rgb[rgb == 4] = torch.cat((t, p, v), -1)[rgb == 4]
     rgb[rgb == 5] = torch.cat((v, p, q), -1)[rgb == 5]
     return rgb
+
+plt.rcParams["savefig.bbox"] = 'tight'
+def show(imgs, path, label, idx):
+    path = '{}/{}/'.format(path, label)
+    if not os.path.isdir(path):
+        os.makedirs(path)
+    plt.figure(figsize=(9, 9), dpi=96)
+
+    if len(imgs.shape)<3:
+        plt.imshow(imgs.cpu().detach().numpy(), cmap='viridis')
+    else:
+        plt.imshow(imgs.cpu().detach().numpy())
+    plt.axis('off')
+    plt.grid(False)
+    plt.savefig('{}/{}.png'.format(path, idx))
+    plt.close()
+
+def mse2psnr(x):
+	return -10.*torch.log(x)/torch.log(torch.as_tensor(10., dtype=torch.float32))

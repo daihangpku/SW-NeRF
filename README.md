@@ -42,7 +42,10 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
   cd d_nerf
   python run_dnerf.py --config configs/bouncingballs.txt
   ```
-
+## T-nerf
+  ```bash
+  cd t_nerf
+  python run_tnerf.py --config configs/bouncingballs.txt
 
 
 

@@ -149,6 +149,67 @@ class DirectTemporalNeRF(nn.Module):
             input_pts = self.embed_fn(input_pts_orig + dx)
         out, _ = self._occ(torch.cat([input_pts, input_views], dim=-1), t)
         return out, dx
+class TNeRF(nn.Module):
+    def __init__(self, depth, in_feat, dir_feat, time_feat, net_dim=128, skip_layer=4):
+        super(TNeRF, self).__init__()
+        self.depth = depth
+        self.skip_layer = skip_layer
+        units = [in_feat + time_feat] + [net_dim] * (self.depth + 1)
+        self.layers = nn.ModuleList([])
+        self.bnorm_layers = nn.ModuleList([])
+        self.in_feat = in_feat
+        for i in range(self.depth):
+            if (i % (self.skip_layer + 1) == 0) and (i > 0):
+                self.layers.append(nn.Sequential(
+                    nn.Linear(in_features=units[i] + in_feat + time_feat, out_features=units[i + 1]),
+                    nn.ELU(),
+                ))
+            else:
+                self.layers.append(nn.Sequential(
+                    nn.Linear(in_features=units[i], out_features=units[i + 1]),
+                    nn.ELU(),
+                ))
+
+        self.density = nn.Sequential(
+            nn.Linear(in_features=net_dim, out_features=1),
+        )
+        self.feature = nn.Sequential(
+            nn.Linear(in_features=net_dim, out_features=net_dim),
+        )
+        self.layer_9 = nn.Sequential(
+            nn.Linear(in_features=net_dim + dir_feat, out_features=net_dim // 2),
+            nn.ELU(),
+        )
+        self.color = nn.Sequential(
+            nn.Linear(in_features=net_dim // 2, out_features=3),
+            nn.ReLU(),
+        )
+
+    def forward(self, inp, vdir, dyn_t):
+        inp = inp[:,:self.in_feat]
+        print(f"pts shape at forward: {inp.shape}")
+        inp = torch.cat([inp, dyn_t], dim=-1)
+        inp_n_samples, inp_c = inp.shape
+        dir_n_samples, vdir_c = vdir.shape
+        inp = torch.reshape(inp, [-1, inp_c])
+        vdir = torch.reshape(vdir, [-1, vdir_c])
+        x = inp
+
+        for i in range(self.depth):
+            x = self.layers[i](x)
+            if (i % self.skip_layer == 0) and (i > 0):
+                x = torch.cat([inp, x], dim=-1)
+
+        sigma = self.density(x)
+        x = self.feature(x)
+        x = torch.cat([x, vdir], dim=-1)
+        x = self.layer_9(x)
+        rgb = self.color(x)
+        sigma = torch.reshape(sigma, [-1, inp_n_samples, 1])
+        rgb = torch.reshape(rgb, [-1, inp_n_samples, 3])
+
+        return torch.cat([rgb, sigma], dim=-1)
+		
 
 
 class NeRF:
