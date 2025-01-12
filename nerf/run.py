@@ -516,7 +516,7 @@ def train():
         print('Loaded custom', images.shape, render_poses.shape, hwf, args.datadir)
         i_train, i_val, i_test = i_split
 
-        near = 2.
+        near = 1.
         far = 6.
 
         if args.white_bkgd:

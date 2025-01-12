@@ -5,7 +5,8 @@ import imageio
 import json
 import torch.nn.functional as F
 import cv2
-
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 trans_t = lambda t : torch.Tensor([
     [1,0,0,0],
@@ -33,7 +34,51 @@ def pose_spherical(theta, phi, radius):
     c2w = torch.Tensor(np.array([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])) @ c2w
     return c2w
 
-
+def visualize_cameras(poses):
+    """可视化相机位姿和坐标轴方向
+    Args:
+        poses: [N, 4, 4] 相机到世界坐标系的变换矩阵
+    """
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # 相机坐标轴的长度
+    axis_length = 0.5
+    
+    for pose in poses:
+        # 提取相机位置（变换矩阵的平移部分）
+        pos = pose[:3, 3]
+        
+        # 提取相机方向（变换矩阵的旋转部分）
+        R = pose[:3, :3]
+        
+        # 绘制相机位置
+        ax.scatter(pos[0], pos[1], pos[2], c='black', marker='o')
+        
+        # 绘制相机坐标轴
+        colors = ['r', 'g', 'b']  # x, y, z轴的颜色
+        for i, color in enumerate(colors):
+            direction = R[:, i]  # 第i个坐标轴的方向
+            ax.quiver(pos[0], pos[1], pos[2],
+                     direction[0], direction[1], direction[2],
+                     length=axis_length, color=color)
+    
+    # 设置坐标轴标签
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    
+    # 设置坐标轴比例相等
+    ax.set_box_aspect([1,1,1])
+    
+    # 添加图例
+    ax.plot([], [], [], 'r-', label='X axis')
+    ax.plot([], [], [], 'g-', label='Y axis')
+    ax.plot([], [], [], 'b-', label='Z axis')
+    ax.legend()
+    
+    plt.title('Camera Poses Visualization')
+    plt.show()
 def load_blender_data(basedir, half_res=False, testskip=1):
     splits = ['train', 'val', 'test']
     metas = {}
@@ -101,7 +146,7 @@ def load_blender_data(basedir, half_res=False, testskip=1):
         imgs = imgs_half_res
         # imgs = tf.image.resize_area(imgs, [400, 400]).numpy()
 
-        
+    #visualize_cameras(poses)
     return imgs, poses, render_poses, [H, W, focal], i_split
 
 

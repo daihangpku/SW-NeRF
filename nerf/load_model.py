@@ -125,10 +125,22 @@ def query_nerf(x, y, z, viewdir, model, embed_fn, embeddirs_fn, device):
     return rgb[0, 0], rgb[0, 1], rgb[0, 2], rho[0]
 from utils import config_parser
 def load_model():
-    config_path = 'configs/lego.txt'
-    ckpt_path = 'logs/blender_paper_lego/150000.tar'
+    #config_path = 'configs/lego.txt'
+    #ckpt_path = 'logs/blender_paper_lego/150000.tar'
     parser = config_parser()
     args = parser.parse_args()
+    if args.ft_path is not None and args.ft_path!='None':
+        ckpts = [args.ft_path]
+    else:
+        ckpts = [os.path.join(args.basedir, args.expname, f) for f in sorted(os.listdir(os.path.join(args.basedir, args.expname))) if 'tar' in f]
+
+   
+    if len(ckpts) > 0 : 
+        print('Found ckpts', ckpts)
+        ckpt_path = ckpts[-1]
+        print('Reloading from', ckpt_path)
+    else:
+        raise Exception('No checkpoint found')
     #args = load_config(config_path)
     model, model_fine, optimizer, network_query_fn = create_nerf(args)
     start = load_checkpoint(ckpt_path, model, model_fine, optimizer)

@@ -4,3 +4,5 @@ imageio
 imageio-ffmpeg
 configargparse
 opencv-python
+scikit-image
+trimesh
