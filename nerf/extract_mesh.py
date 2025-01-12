@@ -3,7 +3,7 @@ from skimage import measure
 import trimesh
 import torch
 from tqdm import tqdm
-
+import os
 def generate_viewdirs(num_views=100):
     """
     生成均匀分布在球面上的观察方向
@@ -155,7 +155,7 @@ def nerf_to_mesh(nerf_function, bounds, resolution=64, density_threshold=0.5, nu
 def main():
     from load_model import load_model
     bounds = [(-1.5, 1.5), (-1.5, 1.5), (-1.5, 1.5)]
-    model, model_fine, optimizer, network_query_fn = load_model()
+    model, model_fine, optimizer, network_query_fn, args = load_model()
     
     # 获取模型所在的设备
     device = next(model_fine.parameters()).device
@@ -185,7 +185,9 @@ def main():
     
     # 生成mesh
     mesh = nerf_to_mesh(batch_query_fn, bounds, resolution=128, batch_size=1024)
-    mesh.export('nerf_mesh.obj')
+    savedir = os.path.join(args.basedir, args.expname, 'mesh.obj')
+    mesh.export(savedir)
+    print(f"Mesh saved to {savedir}")
 
 if __name__ == "__main__":
     main()

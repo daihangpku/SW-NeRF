@@ -134,4 +134,4 @@ def load_model():
     start = load_checkpoint(ckpt_path, model, model_fine, optimizer)
 
     print(f"Model loaded from checkpoint {ckpt_path} at step {start}")
-    return model, model_fine, optimizer, network_query_fn
+    return model, model_fine, optimizer, network_query_fn, args
