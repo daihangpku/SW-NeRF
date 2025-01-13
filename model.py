@@ -187,7 +187,6 @@ class TNeRF(nn.Module):
 
     def forward(self, inp, vdir, dyn_t):
         inp = inp[:,:self.in_feat]
-        print(f"pts shape at forward: {inp.shape}")
         inp = torch.cat([inp, dyn_t], dim=-1)
         inp_n_samples, inp_c = inp.shape
         dir_n_samples, vdir_c = vdir.shape
