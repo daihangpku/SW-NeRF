@@ -146,6 +146,6 @@ def load_blender_data(basedir, half_res=False, testskip=1):
             imgs_half_res[i] = cv2.resize(img, (H, W), interpolation=cv2.INTER_AREA)
         imgs = imgs_half_res
         # imgs = tf.image.resize_area(imgs, [400, 400]).numpy()
-
+    print(f"imgs.shape at loading: {imgs.shape}")
     # 返回图像、位姿、时间、渲染位姿、渲染时间以及相机参数
     return imgs, poses, times, render_poses, render_times, [H, W, focal], i_split

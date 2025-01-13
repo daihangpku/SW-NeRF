@@ -37,6 +37,7 @@ def batchify(fn, chunk):
         out_list = []  # 存储输出结果的列表
         dx_list = []  # 存储梯度的列表
         for i in range(0, num_batches, chunk):  # 按照指定的chunk大小进行分批次处理
+            #print(f"shape at batchify: {inputs_pos[i:i+chunk].shape}")
             out, dx = fn(inputs_pos[i:i+chunk], [inputs_time[0][i:i+chunk], inputs_time[1][i:i+chunk]])
             out_list += [out]  # 将当前批次的输出添加到列表中
             dx_list += [dx]  # 将当前批次的梯度添加到列表中
@@ -78,6 +79,7 @@ def run_network(inputs, viewdirs, frame_time, fn, embed_fn, embeddirs_fn, embedt
         embedded = torch.cat([embedded, embedded_dirs], -1)  # 将位置和视角嵌入拼接起来
 
     # 应用网络并返回输出和位置梯度
+    #print(f"shape at run_network: {embedded.shape}")
     outputs_flat, position_delta_flat = batchify(fn, netchunk)(embedded, embedded_times)
     outputs = torch.reshape(outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]])  # 恢复输出的形状
     position_delta = torch.reshape(position_delta_flat, list(inputs.shape[:-1]) + [position_delta_flat.shape[-1]])  # 恢复位置梯度的形状
@@ -89,7 +91,7 @@ def batchify_rays(rays_flat, chunk=1024*32, **kwargs):
     """Render rays in smaller minibatches to avoid OOM.
     """
     all_ret = {}
-    for i in range(0, rays_flat.shape[0], chunk): # 将光线分成更小的批次进行渲染
+    for i in trange(0, rays_flat.shape[0], chunk): # 将光线分成更小的批次进行渲染
         ret = render_rays(rays_flat[i:i+chunk], **kwargs) # 渲染当前批次的光线
         for k in ret:
             if k not in all_ret:
@@ -101,7 +103,7 @@ def batchify_rays(rays_flat, chunk=1024*32, **kwargs):
     return all_ret
 
 
-def render(H, W, focal, chunk=1024*32, rays=None, c2w=None, ndc=True,
+def render(H, W, focal, chunk=500, rays=None, c2w=None, ndc=True,
                   near=0., far=1., frame_time=None,
                   use_viewdirs=False, c2w_staticcam=None,
                   **kwargs):
@@ -237,13 +239,13 @@ def render_path(render_poses, render_times, hwf, chunk, render_kwargs, gt_imgs=N
     return rgbs, disps
 
 
-def create_nerf(args):
+def create_nerf(args,channels=None):
     """
     实例化NeRF模型，设置模型的各项参数并返回。
 
     参数:
       args: 包含模型参数的配置对象。
-      
+      channels: 三元组，分别为位置、时间、视角的通道数,-1表示返回identity
     返回:
       render_kwargs_train: 训练时渲染的参数。
       render_kwargs_test: 测试时渲染的参数。
@@ -251,13 +253,13 @@ def create_nerf(args):
       grad_vars: 模型的所有可训练参数。
       optimizer: 优化器对象。
     """
-    embed_fn, input_ch = get_embedder(args.multires, 3, args.i_embed)
-    embedtime_fn, input_ch_time = get_embedder(args.multires, 1, args.i_embed)
+    embed_fn, input_ch = get_embedder(channels[0], 3, channels[0])
+    embedtime_fn, input_ch_time = get_embedder(channels[1], 1, channels[1])
 
     input_ch_views = 0
     embeddirs_fn = None
     if args.use_viewdirs:
-        embeddirs_fn, input_ch_views = get_embedder(args.multires_views, 3, args.i_embed)
+        embeddirs_fn, input_ch_views = get_embedder(channels[2], 3, channels[2])
 
     output_ch = 5 if args.N_importance > 0 else 4 # 如果需要重要性采样，则输出5通道
     skips = [4] # 跳跃层
@@ -434,7 +436,6 @@ def render_rays(ray_batch,
 
         pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples, 3]
 
-
         if N_importance <= 0:
             raw, position_delta = network_query_fn(pts, viewdirs, frame_time, network_fn)
             rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
@@ -455,8 +456,10 @@ def render_rays(ray_batch,
             z_vals, _ = torch.sort(torch.cat([z_vals, z_samples], -1), -1)
 
     pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples + N_importance, 3]
+#    print(f'pts shape: {pts.shape}')
     run_fn = network_fn if network_fine is None else network_fine
     raw, position_delta = network_query_fn(pts, viewdirs, frame_time, run_fn)
+#    print(f'raw shape: {raw.shape}')
     rgb_map, disp_map, acc_map, weights, _ = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
 
     ret = {'rgb_map' : rgb_map, 'disp_map' : disp_map, 'acc_map' : acc_map, 'z_vals' : z_vals,
@@ -573,10 +576,10 @@ def train():
     optimizer_list = []
     start_list = []
     global_steps = []
-
+    channel_list = [(10,4,10),(5,2,5),(2,1,2),(-1,-1,-1)]
     for layer in range(args.layer_num):
         print(f"Creating NeRF model for layer {layer}")
-        render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer = create_nerf(args)
+        render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer = create_nerf(args,channel_list[layer])
         render_kwargs_train.update({'near': near, 'far': far})
         render_kwargs_test.update({'near': near, 'far': far})
 
@@ -635,7 +638,7 @@ def train():
     # 定义图像重建函数
     # 已在前面定义
 
-    for i in trange(start_list[0], N_iters):
+    for i in range(start_list[0], N_iters):
         time0 = time.time()
         current_time = time0
 
@@ -650,7 +653,7 @@ def train():
             H_l, W_l, focal_l = pyr_hwf[layer]
 
             # 多次训练同一模型以增强局部性
-            for _ in range(args.inner_iteration):  # inner_iteration 是一个新参数，定义每层每步的训练次数
+            for _ in trange(args.inner_iteration):  # inner_iteration 是一个新参数，定义每层每步的训练次数
                 outputs = []
                 if use_batching:
                     # 随机批次光线
@@ -672,44 +675,19 @@ def train():
                     target = pyr_images[layer][img_i]
                     pose = poses[img_i, :3, :4]
                     frame_time = times[img_i]
-
                     rays_o, rays_d = get_rays(H_l, W_l, focal_l, pose)  # (H, W, 3), (H, W, 3)
-
-                    if i < args.precrop_iters:
-                        dH = int(H_l // 2 * args.precrop_frac)
-                        dW = int(W_l // 2 * args.precrop_frac)
-                        coords = torch.stack(
-                            torch.meshgrid(
-                                torch.linspace(H_l // 2 - dH, H_l // 2 + dH - 1, 2 * dH),
-                                torch.linspace(W_l // 2 - dW, W_l // 2 + dW - 1, 2 * dW)
-                            ), -1)
-                        if i == start_list[layer]:
-                            print(f"[Config] Center cropping of size {2*dH} x {2*dW} is enabled until iter {args.precrop_iters}")
-                    else:
-                        coords = torch.stack(
-                            torch.meshgrid(
-                                torch.linspace(0, H_l - 1, H_l),
-                                torch.linspace(0, W_l - 1, W_l)
-                            ), -1
-                        )  # (H, W, 2)
-
-                    coords = torch.reshape(coords, [-1, 2])  # (H * W, 2)
-                    select_inds = np.random.choice(coords.shape[0], size=[N_rand], replace=False)  # (N_rand,)
-                    select_coords = coords[select_inds].long()  # (N_rand, 2)
-                    rays_o_batch = rays_o[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-                    rays_d_batch = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-                    batch_rays = torch.stack([rays_o_batch, rays_d_batch], 0)  # [2, N_rand, 3]
-                    target_s = target[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
+                    rays_o ,rays_d = rays_o.view(-1, 3),rays_d.view(-1, 3)  # (H*W, 3), (H*W, 3)
+                    rays = torch.stack([rays_o, rays_d], 0)  # [2, H*W, 3]
 
                 ##### 核心优化循环 #####
                 rgb, disp, acc, extras = render(
-                    H_l, W_l, focal_l, chunk=args.chunk, rays=batch_rays, frame_time=frame_time,
+                    H_l, W_l, focal_l, chunk=args.chunk, rays=rays, frame_time=frame_time,
                     verbose=(i < 10), retraw=True,
                     **render_kwargs_train
                 )
                 # 收集输出到拉普拉斯金字塔
                 outputs.append(rgb)  # [B, 3, H, W]
-
+                assert 0==1
                 optimizer.zero_grad()
                 img_loss = F.mse_loss(rgb, target_s)
 

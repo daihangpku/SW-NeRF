@@ -2,27 +2,40 @@ expname = bouncingballs
 basedir = ./logs
 datadir = ./data/bouncingballs
 dataset_type = blender
+chunk = 500
+netchunk = 1024
 
 nerf_type = direct_temporal
 no_batching = True
 not_zero_canonical = False
 use_viewdirs = True
+netwidth = 32
+netwidth_fine = 32
 
 use_viewdirs = True
 white_bkgd = True
-lrate_decay = 500
+lrate_decay = 50
 add_tv_loss
 tv_loss_weight = 1e-3
 
-N_iter = 800000
+N_iter = 2000
 N_samples = 64
 N_importance = 128
-N_rand = 500
 testskip = 1
 
-precrop_iters = 500
-precrop_iters_time = 10000
-precrop_frac = 0.5
+precrop_iters = -1
+precrop_iters_time = -1
+precrop_frac = -1
 
 half_res = True
 do_half_precision = False
+no_batching
+loss_decrease_rate = 0.04
+
+i_print = 2
+i_img = 4
+i_video = 40
+i_weights = 4
+i_testset = 40
+
+inner_iteration = 10

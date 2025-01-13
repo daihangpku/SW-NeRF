@@ -137,7 +137,16 @@ def config_parser_dnerf():
                         help='do not reload weights from saved ckpt')
     parser.add_argument("--ft_path", type=str, default=None, 
                         help='specific weights npy file to reload for coarse network')
+    
+    # multiresolution options
 
+    parser.add_argument("--layer_num",type=int, default=4,
+                        help = 'number of resolutions')
+    parser.add_argument("--global_optimization_epoch", type=int, default=120,)
+
+    parser.add_argument("--inner_iteration",type=int, default=10,)
+
+    parser.add_argument("--loss_decrease_rate",type=float, default=0.04,)
     # rendering options
     parser.add_argument("--N_samples", type=int, default=64, 
                         help='number of coarse samples per ray')
