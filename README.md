@@ -2,10 +2,10 @@
 ## Quick Start
 create a virtual environment and clone the repository
   ```bash
-  conda create -n nerf_fans python=3.9
-  conda activate nerf_fans
+  conda create -n sw-nerf python=3.9
+  conda activate sw-nerf
   git clone <repository_url>
-  cd NeRF_Fans
+  cd SW-NeRF
   pip install -r requirements.txt
   ```
 get torch ready(replace XXX with your cuda version)
@@ -14,29 +14,41 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
 ```
 
 
-##  SW-nerf
+###  SW-nerf(including Vanilla NeRF)
+  .txt under dir nerf/configs are prepared for several classic dataset.
+  for quick start, you can
+  ```bash
+  cd nerf
+  bash download_example_data.sh
+  cd ..
+  ```
   Train a vallina nerf from scratch using example dataset.
   ```bash
   cd nerf
   python run.py --config configs/lego.txt
   cd ..
   ```
-  extract mesh with checkpoint
+  extract mesh with checkpoint like logs/expname(in configs/datasetname.txt)/010000.tar
   ```bash
   cd nerf
-  python extract_mesh.py --config configs/drill.txt
+  python extract_mesh.py --config configs/drill.txt --resolution 128 --threshold 8
   cd ..
   ```
   you will get logs/drill/mesh.obj
 
 
-  if you are using a dataset with aruco
+  if you are using a dataset with aruco which has a structure like
+  - drill
+    - images(segmented images)
+    - images_ori(images with aruco(unsegmented))
+    - transforms.json
+  and already has a mesh in logs/datasetname/mesh.obj
   ```bash
   cd nerf
-  python transform_mesh.py --config configs/drill.txt
+  python transform_mesh.py --config configs/drill.txt --real_length xx
   cd ..
   ```
-  you will get a real-scaled mesh as transformed_mesh.obj
+  you will get a real-scaled mesh as transformed_mesh.obj in the same dirctory.
 
 
   if you want to test the model with checkpoint in nerf/logs/expname/xxxxxx.tar
@@ -45,15 +57,15 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
   python run.py --config configs/xxxx.txt --render_only --render_test
   cd ..
   ```
-## D-nerf
+### D-nerf
   ```bash
   cd d_nerf
   python run_dnerf.py --config configs/bouncingballs.txt
+  cd ..
   ```
-## T-nerf
+### T-nerf
   ```bash
   cd t_nerf
   python run_tnerf.py --config configs/bouncingballs.txt
-
-
-
+  cd ..
+  ```
