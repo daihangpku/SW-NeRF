@@ -70,7 +70,7 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
   python run_dnerf.py --config configs/bouncingballs.txt
   cd ..
   ```
-  This command will run the **bouncingballs** experiment. When finished, results are saved to **./d_nerf/logs/bouncingballs/renderonly_test_800000** To quantitatively evaluate model run **metrics.ipynb** notebook.
+  This command will run the `bouncingballs` experiment. When finished, results are saved to `./d_nerf/logs/bouncingballs/renderonly_test_800000` To quantitatively evaluate model run `metrics.ipynb` notebook.
 ### T-nerf
   ```bash
   cd t_nerf
