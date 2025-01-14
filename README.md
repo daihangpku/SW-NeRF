@@ -59,11 +59,19 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
   cd ..
   ```
 ### D-nerf
+  To train a D-NeRF, first download the dataset. Then, 
   ```bash
   cd d_nerf
   python run_dnerf.py --config configs/bouncingballs.txt
   cd ..
   ```
+  To test the D-NeRF model, first download pre-trained weights and dataset. Then,    
+  ```bash
+  cd d_nerf
+  python run_dnerf.py --config configs/bouncingballs.txt
+  cd ..
+  ```
+  This command will run the **bouncingballs** experiment. When finished, results are saved to **./d_nerf/logs/bouncingballs/renderonly_test_800000** To quantitatively evaluate model run **metrics.ipynb** notebook.
 ### T-nerf
   ```bash
   cd t_nerf
