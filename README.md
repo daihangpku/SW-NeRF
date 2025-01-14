@@ -1,4 +1,5 @@
-# NeRF_Fans
+# SW-NeRF
+SW-NeRF is a scale-aware neural radiance field framework that successfully bridges the gap between high-fidelity neural scene reconstruction and metric-accurate applications. 
 ## Quick Start
 create a virtual environment and clone the repository
   ```bash
@@ -58,20 +59,11 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
   python run.py --config configs/xxxx.txt --render_only --render_test
   cd ..
   ```
-For the following experiments, the dataset is blender data in DNeRF dataset; it should be put in the same directory as the python runner script.
-An example of the dataset directory is data/bouncingballs
-
 ### D-nerf
   To train a D-NeRF, first download the dataset. Then, 
   ```bash
   cd d_nerf
   python run_dnerf.py --config configs/bouncingballs.txt
-  cd ..
-  ```
-  if you want to train the model with auxiliary tv-loss:
-  ```bash
-  cd d_nerf
-  python run_dnerf.py --config configs/bouncingballs.txt --add_tv_loss
   cd ..
   ```
   To test the D-NeRF model, first download pre-trained weights and dataset. Then,    
@@ -80,18 +72,22 @@ An example of the dataset directory is data/bouncingballs
   python run_dnerf.py --config configs/bouncingballs.txt  --render_only --render_test
   cd ..
   ```
+  if you want to train the model with auxiliary tv-loss:
+  ```bash
+  cd d_nerf
+  python run_dnerf.py --config configs/bouncingballs.txt --add_tv_loss
+  cd ..
+  ```
   This command will run the `bouncingballs` experiment. When finished, results are saved to `./d_nerf/logs/bouncingballs/renderonly_test_800000` To quantitatively evaluate model run `metrics.ipynb` notebook.
 ### T-nerf
-  To train a T-NeRF, first download the dataset. Then, 
   ```bash
   cd t_nerf
   python run_tnerf.py --config configs/bouncingballs.txt
   cd ..
   ```
-### MultiRes-nerf
-  To train a MultiRes-NeRF, first download the dataset. Then, 
-  ```bash
-  cd multi_res_nerf
-  python multires_dnerf.py --config configs/bouncingballs.txt
-  cd ..
-  ```
+## Resources
+  All resources(checkpoints, configs, datas etc.) can be found here: 
+  https://disk.pku.edu.cn/link/AA28924C68DED44B8BBF8898D393DEBC22
+  directory：src
+  For the dynamic experiments, the dataset is blender data in DNeRF dataset; it should be put in the same directory as the python runner script.
+  An example of the dataset directory is data/bouncingballs
