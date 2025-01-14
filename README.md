@@ -1,4 +1,5 @@
-# NeRF_Fans
+# SW-NeRF
+SW-NeRF is a scale-aware neural radiance field framework that successfully bridges the gap between high-fidelity neural scene reconstruction and metric-accurate applications. 
 ## Quick Start
 create a virtual environment and clone the repository
   ```bash
