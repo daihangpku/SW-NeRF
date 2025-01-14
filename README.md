@@ -85,6 +85,13 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
   python run_tnerf.py --config configs/bouncingballs.txt
   cd ..
   ```
+### MultiRes-nerf
+  To train a MultiRes-NeRF, first download the dataset. Then, 
+  ```bash
+  cd multi_res_nerf
+  python multires_dnerf.py --config configs/bouncingballs.txt
+  cd ..
+  ```
 ## Resources
   All resources(checkpoints, configs, datas etc.) can be found here: 
   https://disk.pku.edu.cn/link/AA28924C68DED44B8BBF8898D393DEBC22
