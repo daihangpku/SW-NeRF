@@ -221,7 +221,7 @@ def calculate_3d_corners(frame_info, transform_data):
         camera_params.append(params)
         rays_list.append(rays)
         camera_positions.append(camera_pos)
-    
+
     # 对每个角点进行三角测量
     corner_positions = []
     for i in range(4):  # ArUco码有4个角点
@@ -268,7 +268,7 @@ def cal_scale(datapath):
             for corner, id in zip(corners, ids.flatten()):
                 frame_info.append({'frame': frame, 'id': id, 'corners': corner})
     # ArUco 字典和检测器参数
-    
+        
     if all_ids:
         most_common_id = Counter(all_ids).most_common(1)[0][0]
         filtered_info = [info for info in frame_info if info['id'] == most_common_id]
@@ -282,14 +282,40 @@ def cal_scale(datapath):
         print(f"角点 {i}: {pos}")
     
     mean_length, edge_lengths = visualize_and_measure_corners(corner_positions)
-
+    transform_matrix = calculate_transform_matrix(corner_positions)
     # 如果你知道ArUco码的实际尺寸，可以计算误差
-    actual_size = 0.045  # 假设实际边长为8cm
+    actual_size = 0.005 
     scale_error = actual_size / mean_length
     print(f"\n比例: {scale_error:.3%}")
-    return scale_error
+    return scale_error, transform_matrix
     
-
+def calculate_transform_matrix(corner_positions):
+    """
+    计算变换矩阵，使 ArUco 码的法向量与世界坐标的 z 轴正向对齐
+    """
+    # 计算 ArUco 码的法向量
+    v1 = corner_positions[1] - corner_positions[0]
+    v2 = corner_positions[2] - corner_positions[0]
+    normal = np.cross(v1, v2)
+    normal = normal / np.linalg.norm(normal)
+    
+    # 计算旋转矩阵，使法向量与 z 轴对齐
+    z_axis = np.array([0, 0, 1])
+    v = np.cross(normal, z_axis)
+    c = np.dot(normal, z_axis)
+    s = np.linalg.norm(v)
+    k = np.array([
+        [0, -v[2], v[1]],
+        [v[2], 0, -v[0]],
+        [-v[1], v[0], 0]
+    ])
+    rotation_matrix = np.eye(3) + k + k.dot(k) * ((1 - c) / (s ** 2))
+    
+    # 构建 4x4 变换矩阵
+    transform_matrix = np.eye(4)
+    transform_matrix[:3, :3] = rotation_matrix
+    
+    return transform_matrix
 def main():
     parser = config_parser()
     args = parser.parse_args()
@@ -297,8 +323,8 @@ def main():
     basedir = args.basedir
     input_obj_path = os.path.join(args.basedir, args.expname, 'mesh.obj')
     output_obj_path = os.path.join(args.basedir, args.expname, 'transformed_mesh.obj')
-    scale = cal_scale(datadir)
-    transform_mesh(input_obj_path, output_obj_path, scale, np.eye(4))
+    scale, transform_matrix = cal_scale(datadir)
+    transform_mesh(input_obj_path, output_obj_path, scale, transform_matrix)
     
 
 if __name__ == '__main__':

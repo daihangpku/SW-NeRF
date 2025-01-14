@@ -130,7 +130,7 @@ def generate_mesh(density_field, color_field, xyz_coords, density_threshold=0.5)
     
     return mesh
 
-def nerf_to_mesh(nerf_function, bounds, resolution=64, density_threshold=0.5, num_views=100, batch_size=1024):
+def nerf_to_mesh(nerf_function, bounds, resolution=64, density_threshold=8, num_views=100, batch_size=1024):
     """
     主函数：从NeRF模型生成mesh
     
@@ -154,7 +154,7 @@ def nerf_to_mesh(nerf_function, bounds, resolution=64, density_threshold=0.5, nu
 
 def main():
     from load_model import load_model
-    bounds = [(-1.5, 1.5), (-1.5, 1.5), (-1.5, 1.5)]
+    bounds = [(-1., 0.9), (-1., 2.), (-4., -2.)]
     model, model_fine, optimizer, network_query_fn, args = load_model()
     
     # 获取模型所在的设备
@@ -184,7 +184,7 @@ def main():
         return rgb[..., 0], rgb[..., 1], rgb[..., 2], sigma
     
     # 生成mesh
-    mesh = nerf_to_mesh(batch_query_fn, bounds, resolution=128, batch_size=1024)
+    mesh = nerf_to_mesh(batch_query_fn, bounds, resolution=args.resolution, batch_size=1024,density_threshold=args.threshold)
     savedir = os.path.join(args.basedir, args.expname, 'mesh.obj')
     mesh.export(savedir)
     print(f"Mesh saved to {savedir}")
