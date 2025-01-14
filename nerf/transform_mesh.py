@@ -230,7 +230,7 @@ def calculate_3d_corners(frame_info, transform_data):
         corner_positions.append(pos)
     
     return np.array(corner_positions)
-def cal_scale(datapath):
+def cal_scale(datapath, actual_size):
     # 读取 transform.json 文件
     transform_path = os.path.join(datapath, 'transforms.json')
     with open(transform_path, 'r') as f:
@@ -284,7 +284,7 @@ def cal_scale(datapath):
     mean_length, edge_lengths = visualize_and_measure_corners(corner_positions)
     transform_matrix = calculate_transform_matrix(corner_positions)
     # 如果你知道ArUco码的实际尺寸，可以计算误差
-    actual_size = 0.005 
+    
     scale_error = actual_size / mean_length
     print(f"\n比例: {scale_error:.3%}")
     return scale_error, transform_matrix
@@ -323,7 +323,7 @@ def main():
     basedir = args.basedir
     input_obj_path = os.path.join(args.basedir, args.expname, 'mesh.obj')
     output_obj_path = os.path.join(args.basedir, args.expname, 'transformed_mesh.obj')
-    scale, transform_matrix = cal_scale(datadir)
+    scale, transform_matrix = cal_scale(datadir,args.real_length)
     transform_mesh(input_obj_path, output_obj_path, scale, transform_matrix)
     
 

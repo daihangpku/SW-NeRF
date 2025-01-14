@@ -154,7 +154,7 @@ def nerf_to_mesh(nerf_function, bounds, resolution=64, density_threshold=8, num_
 
 def main():
     from load_model import load_model
-    bounds = [(-1., 0.9), (-1., 2.), (-4., -2.)]
+    bounds = [(-1., 1), (-1., 2.), (-4., 2.)]
     model, model_fine, optimizer, network_query_fn, args = load_model()
     
     # 获取模型所在的设备
