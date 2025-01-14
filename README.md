@@ -31,10 +31,11 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
   extract mesh with checkpoint like logs/expname(in configs/datasetname.txt)/010000.tar
   ```bash
   cd nerf
-  python extract_mesh.py --config configs/drill.txt --resolution 128 --threshold 8
+  python extract_mesh.py --config configs/drill.txt --resolution 128 --threshold 30
   cd ..
   ```
   you will get logs/drill/mesh.obj
+  tips: the bounds in extra_mesh.py should be specified according to your data.
 
 
   if you are using a dataset with aruco which has a structure like
