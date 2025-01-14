@@ -8,6 +8,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm, trange
+import lpips
+from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import peak_signal_noise_ratio as psnr
+
+# Initialize LPIPS model
 
 import matplotlib.pyplot as plt
 import sys
@@ -31,7 +36,29 @@ to8b = lambda x : (255*np.clip(x,0,1)).astype(np.uint8)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(0)
 DEBUG = False
+def convert_tensors(data):
+    if isinstance(data, torch.Tensor):
+        return data.item()
+    elif isinstance(data, dict):
+        return {k: convert_tensors(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [convert_tensors(item) for item in data]
+    else:
+        return data
 
+def calculate_metrics(gt, pred):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    """
+    计算 PSNR, SSIM 和 LPIPS
+    """
+    lpips_model = lpips.LPIPS(net='alex').to(device)
+    pred = np.clip(pred, 0.0, 1.0) 
+    psnr_value = psnr(gt, pred, data_range=gt.max() - gt.min())
+    ssim_value = ssim(gt, pred, win_size=7, multichannel=True, data_range=gt.max() - gt.min(),channel_axis=2)
+    
+    lpips_value = lpips_model(torch.tensor(gt).permute(2, 0, 1).unsqueeze(0).float().to(device), 
+                              torch.tensor(pred).permute(2, 0, 1).unsqueeze(0).float()).to(device)
+    return psnr_value, ssim_value, lpips_value
 
 def batchify(fn, chunk):
     """Constructs a version of 'fn' that applies to smaller batches.
@@ -545,7 +572,27 @@ def train():
             print('Done rendering', testsavedir)
             # 将渲染结果保存为视频
             imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
-
+            if images is not None:
+                psnr_values = []
+                ssim_values = []
+                lpips_values = []
+                for gt, pred in zip(images, rgbs):
+                    # print("GT图像尺寸:", gt.shape)
+                    # print("Pred图像尺寸:", pred.shape)
+                    psnr_value, ssim_value, lpips_value = calculate_metrics(gt, pred)
+                    psnr_values.append(psnr_value)
+                    ssim_values.append(ssim_value)
+                    lpips_values.append(lpips_value)
+                
+                metrics = {
+                    'psnr': psnr_values,
+                    'ssim': ssim_values,
+                    'lpips': lpips_values
+                }
+                metrics = convert_tensors(metrics)
+                with open(os.path.join(testsavedir, 'metrics.json'), 'w') as f:
+                    json.dump(metrics, f, indent=4)
+                print('Metrics saved to', os.path.join(testsavedir, 'metrics.json'))
             return
 
     # Prepare raybatch tensor if batching random rays

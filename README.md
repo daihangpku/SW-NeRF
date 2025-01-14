@@ -37,6 +37,14 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
   cd ..
   ```
   you will get a real-scaled mesh as transformed_mesh.obj
+
+
+  if you want to test the model with checkpoint in nerf/logs/expname/xxxxxx.tar
+  ```bash
+  cd nerf
+  python run.py --config configs/xxxx.txt --render_only --render_test
+  cd ..
+  ```
 ## D-nerf
   ```bash
   cd d_nerf

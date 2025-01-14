@@ -11,3 +11,4 @@ torchvision
 glob
 natsort
 piq
+lpips
