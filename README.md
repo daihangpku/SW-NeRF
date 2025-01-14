@@ -35,6 +35,7 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
   cd ..
   ```
   you will get logs/drill/mesh.obj
+  tips: the bounds in extra_mesh.py should be specified according to your data.
 
 
   if you are using a dataset with aruco which has a structure like

@@ -95,7 +95,7 @@ def config_parser():
     parser.add_argument("--resolution", type=int, default=128,help='resolution of the mesh')
     parser.add_argument("--threshold", type=int, default=8,help='density threshold of the mesh')
     #mesh transformation
-    parser.add_argument("--real_length", type=float, default=0.0045,help='real length of the aruco marker')
+    parser.add_argument("--real_length", type=float, default=0.005,help='real length of the aruco marker')
     return parser
 
 def config_parser_dnerf():
