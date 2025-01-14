@@ -553,24 +553,32 @@ def train():
     # Short circuit if only rendering out from trained model
     if args.render_only:
         print('RENDER ONLY')
+        # with torch.no_grad():
+        #     if args.render_test:
+        #         # render_test switches to test poses
+        #         images = images[i_test]
+        #     else:
+        #         # Default is smoother render_poses path
+        #         images = None
+
+        #     testsavedir = os.path.join(basedir, expname, 'renderonly_{}_{:06d}'.format('test' if args.render_test else 'path', start))
+        #     os.makedirs(testsavedir, exist_ok=True)
+        #     print('test poses shape', render_poses.shape)
+
+        #     rgbs, _ = render_path(render_poses, render_times, hwf, args.chunk, render_kwargs_test, gt_imgs=images,
+        #                           savedir=testsavedir, render_factor=args.render_factor, save_also_gt=True)
+        #     print('Done rendering', testsavedir)
+        #     imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
+        print("Rendering video...")
+        i = 35000
         with torch.no_grad():
-            if args.render_test:
-                # render_test switches to test poses
-                images = images[i_test]
-            else:
-                # Default is smoother render_poses path
-                images = None
-
-            testsavedir = os.path.join(basedir, expname, 'renderonly_{}_{:06d}'.format('test' if args.render_test else 'path', start))
-            os.makedirs(testsavedir, exist_ok=True)
-            print('test poses shape', render_poses.shape)
-
-            rgbs, _ = render_path(render_poses, render_times, hwf, args.chunk, render_kwargs_test, gt_imgs=images,
-                                  savedir=testsavedir, render_factor=args.render_factor, save_also_gt=True)
-            print('Done rendering', testsavedir)
-            imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
-
-            return
+            savedir = os.path.join(basedir, expname, 'frames_{}_spiral_{:06d}_time/'.format(expname, i))
+            rgbs, disps = render_path(render_poses, render_times, hwf, args.chunk, render_kwargs_test, savedir=savedir)
+        print('Done, saving', rgbs.shape, disps.shape)
+        moviebase = os.path.join(basedir, expname, '{}_spiral_{:06d}_'.format(expname, i))
+        imageio.mimwrite(moviebase + 'rgb.mp4', to8b(rgbs), fps=30, quality=8)
+        imageio.mimwrite(moviebase + 'disp.mp4', to8b(disps / np.max(disps)), fps=30, quality=8)
+        return
 
     # Prepare raybatch tensor if batching random rays
     N_rand = args.N_rand
