@@ -267,7 +267,9 @@ class NeRFOriginal(nn.Module):
             self.rgb_linear = nn.Linear(W//2, output_color_ch)
         else:
             self.output_linear = nn.Linear(W, output_ch)
-
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in')
     def forward(self, x, ts):
         input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
         h = input_pts

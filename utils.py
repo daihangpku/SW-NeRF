@@ -91,6 +91,11 @@ def config_parser():
     parser.add_argument("--i_video",   type=int, default=50000, 
                         help='frequency of render_poses video saving')
 
+    #mesh extraction
+    parser.add_argument("--resolution", type=int, default=128,help='resolution of the mesh')
+    parser.add_argument("--threshold", type=int, default=8,help='density threshold of the mesh')
+    #mesh transformation
+    parser.add_argument("--real_length", type=float, default=0.005,help='real length of the aruco marker')
     return parser
 
 def config_parser_dnerf():
@@ -147,6 +152,7 @@ def config_parser_dnerf():
     parser.add_argument("--inner_iteration",type=int, default=10,)
 
     parser.add_argument("--loss_decrease_rate",type=float, default=0.04,)
+    
     # rendering options
     parser.add_argument("--N_samples", type=int, default=64, 
                         help='number of coarse samples per ray')
@@ -219,13 +225,13 @@ def config_parser_dnerf():
     # logging/saving options
     parser.add_argument("--i_print",   type=int, default=1000,
                         help='frequency of console printout and metric loggin')
-    parser.add_argument("--i_img",     type=int, default=10000,
+    parser.add_argument("--i_img",     type=int, default=5000,
                         help='frequency of tensorboard image logging')
-    parser.add_argument("--i_weights", type=int, default=10000,
+    parser.add_argument("--i_weights", type=int, default=5000,
                         help='frequency of weight ckpt saving')
-    parser.add_argument("--i_testset", type=int, default=50000,
+    parser.add_argument("--i_testset", type=int, default=40000,
                         help='frequency of testset saving')
-    parser.add_argument("--i_video",   type=int, default=50000,
+    parser.add_argument("--i_video",   type=int, default=40000,
                         help='frequency of render_poses video saving')
 
     return parser

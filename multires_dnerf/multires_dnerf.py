@@ -737,6 +737,27 @@ def train():
 
     list1 = generate_laplacian_pyramid_batch(images[:4])
     save_tensors_as_images(list1, os.path.join(basedir, expname, 'pyramid_images'))
+
+    testsavedir = os.path.join(basedir, expname, f'testset')
+    print('Testing poses shape...', poses[i_test].shape)
+    with torch.no_grad():
+        # 收集所有模型的渲染输出
+        pyramid_test = []
+        for layer in range(args.layer_num):
+            rgbs, _ = render_path(
+                torch.Tensor(poses[i_test]).to(device), torch.Tensor(render_times).to(device),
+                hwf, args.chunk, render_kwargs_test_list[layer],
+                gt_imgs=pyr_images[layer][i_test], savedir=os.path.join(testsavedir, f'layer_{layer}')
+            )
+            pyramid_test.append(torch.Tensor(rgbs).to(device))
+        # 重建图像
+        pyramid_test = torch.stack(pyramid_test, dim=0)  # [layer_num, test_N, 3, H, W]
+        reconstructed_test = reconstruct_image_from_pyramid_batch(pyramid_test)  # [test_N, H, W, 3]
+
+        # 保存测试集重建图像
+        # 这里可以根据需求进一步处理，比如保存为图像文件或其他格式
+    print('Saved test set reconstructed images')
+
     for model_idx in reversed(range(args.layer_num)):
         print(f"\n=== 开始训练模型 {model_idx} ===\n")
         render_kwargs_train = render_kwargs_train_list[model_idx]
